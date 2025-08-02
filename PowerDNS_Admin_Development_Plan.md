@@ -270,13 +270,13 @@ CREATE TABLE license_usage (
 
 ### 3. Directory Structure
 ```
-/admin/
+/config/
+├── database.php.sample  # Database configuration template
+├── database.php         # Actual config (gitignored)
+│── app.php             # Application settings
+└── global_settings.php # Global DNS settings
+/webroot/
 ├── index.php                 # Main dashboard/login
-├── config/
-│   ├── database.php.sample  # Database configuration template
-│   ├── database.php         # Actual config (gitignored)
-│   ├── app.php             # Application settings
-│   └── global_settings.php # Global DNS settings
 ├── includes/
 │   ├── auth.php            # Authentication functions
 │   ├── functions.php       # Utility functions
@@ -296,7 +296,7 @@ CREATE TABLE license_usage (
 │   ├── Session.php        # Database session management
 │   ├── Encryption.php     # AES encryption for sensitive data
 │   └── AuditLog.php       # Logging class
-├── pages/
+├── console/
 │   ├── login.php          # Login page
 │   ├── dashboard.php      # Main dashboard
 │   ├── domains/
@@ -325,16 +325,16 @@ CREATE TABLE license_usage (
 │   │   ├── record_types.php # Custom record type management
 │   │   └── audit.php      # Audit log
 │   └── profile.php        # User profile and 2FA settings
-├── cli/
-│   └── reset_mfa.php      # Command-line MFA reset script
 ├── api/
 │   ├── domains.php        # Domain API endpoints
 │   ├── records.php        # Records API endpoints
 │   ├── dynamic_dns.php    # Dynamic DNS update API
 │   └── validation.php     # Real-time validation
 ├── assets/                # Use existing assets
+/cli/
+│   └── reset_mfa.php      # Command-line MFA reset script
 ├── .gitignore            # Exclude config/database.php
-└── docs/                 # Documentation
+/docs/                 # Documentation
 ```
 
 ---
