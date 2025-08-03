@@ -1,0 +1,560 @@
+/* PDNS Console Custom CSS */
+
+/* Remove all card styling to let themes control appearance completely */
+
+.sidebar-heading {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+/* Loading spinner */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+}
+
+/* Form enhancements */
+.form-floating > label {
+    opacity: 0.65;
+}
+
+.form-floating > .form-control:focus ~ label,
+.form-floating > .form-control:not(:placeholder-shown) ~ label {
+    opacity: 1;
+}
+
+/* Table enhancements */
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.025);
+}
+
+/* Remove button enhancements to let theme control styling */
+/* No custom button styling - let Bootstrap handle it */
+
+/* Alert enhancements */
+.alert {
+    border: 0;
+    border-radius: 0.35rem;
+}
+
+.alert-dismissible .btn-close {
+    padding: 0.75rem 1rem;
+}
+
+/* Responsive table */
+@media (max-width: 767.98px) {
+    .table-responsive table,
+    .table-responsive thead,
+    .table-responsive tbody,
+    .table-responsive th,
+    .table-responsive td,
+    .table-responsive tr {
+        display: block;
+    }
+    
+    .table-responsive thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    
+    .table-responsive tr {
+        border: 1px solid #ccc;
+        margin-bottom: 10px;
+        padding: 10px;
+    }
+    
+    .table-responsive td {
+        border: none;
+        position: relative;
+        padding-left: 50% !important;
+    }
+    
+    .table-responsive td:before {
+        content: attr(data-label) ": ";
+        position: absolute;
+        left: 6px;
+        width: 45%;
+        font-weight: bold;
+    }
+}
+
+/* ===== LAYOUT & NAVIGATION STYLES ===== */
+
+/* Sidebar styles */
+.sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 48px 0 0;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
+}
+
+.sidebar-sticky {
+    position: relative;
+    top: 0;
+    height: calc(100vh - 48px);
+    padding-top: .5rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+/* Navbar styles */
+.navbar-brand {
+    padding-top: .75rem;
+    padding-bottom: .75rem;
+}
+
+/* Remove navbar color overrides to let themes control colors */
+.navbar-nav .nav-link:hover {
+    opacity: 0.8;
+}
+
+.navbar-nav .nav-link.active {
+    font-weight: bold;
+}
+
+/* Let themes handle border colors */
+.border-start-primary {
+    border-left: .25rem solid var(--bs-primary) !important;
+}
+
+.border-start-success {
+    border-left: .25rem solid var(--bs-success) !important;
+}
+
+.border-start-info {
+    border-left: .25rem solid var(--bs-info) !important;
+}
+
+.border-start-warning {
+    border-left: .25rem solid var(--bs-warning) !important;
+}
+
+/* Main content area */
+main {
+    margin-left: 0; /* Remove sidebar margin */
+    padding: 1rem;
+}
+
+@media (max-width: 767.98px) {
+    .sidebar {
+        top: 5rem;
+    }
+    main {
+        margin-left: 0;
+    }
+}
+
+/* ===== UTILITY CLASSES ===== */
+
+.text-xs {
+    font-size: .7rem;
+}
+
+.font-weight-bold {
+    font-weight: 700 !important;
+}
+
+/* ===== ICON STYLES ===== */
+
+/* Ensure Font Awesome icons display properly */
+.fas, .far, .fab, .fal, .fad, .fa {
+    font-family: "Font Awesome 6 Free", "Font Awesome 6 Pro", "Font Awesome 5 Free", "Font Awesome 5 Pro", FontAwesome !important;
+    font-weight: 900;
+    display: inline-block;
+    font-style: normal;
+    font-variant: normal;
+    text-rendering: auto;
+    line-height: 1;
+}
+
+.far {
+    font-weight: 400;
+}
+
+/* Fallback for missing icons */
+.fas:before, .far:before, .fab:before {
+    content: attr(data-fallback) !important;
+}
+
+/* Icon loading test */
+.icon-test:after {
+    content: " ✓";
+    color: green;
+}
+
+/* ===== LAYOUT STRUCTURE ===== */
+
+/* Sticky footer layout */
+html, body {
+    height: 100%;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+}
+
+.container-fluid {
+    flex: 1 0 auto;
+}
+
+footer {
+    flex-shrink: 0;
+}
+
+/* ===== THEME-FRIENDLY ENHANCEMENTS ===== */
+
+/* Theme-friendly card hover effects */
+.hover-lift {
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Let themes control card styling completely */
+/* Remove all card-header and card-footer styling */
+
+/* ===== DASHBOARD-SPECIFIC STYLES ===== */
+
+/* List group enhancements */
+.list-group-item {
+    border-left: none;
+    border-right: none;
+    transition: background-color 0.2s ease;
+}
+
+.list-group-item:hover {
+    background-color: var(--bs-gray-100, rgba(0, 0, 0, 0.02));
+}
+
+.list-group-item:first-child {
+    border-top: none;
+}
+
+.list-group-item:last-child {
+    border-bottom: none;
+}
+
+/* Use CSS variables for theme compatibility */
+.bg-gradient-primary {
+    background: linear-gradient(135deg, var(--bs-primary) 0%, var(--bs-primary) 100%) !important;
+}
+
+.card-body .row.no-gutters .col-auto {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.text-xs {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+/* Remove card styling that overrides theme styles */
+
+/* Icon circle styling for statistics cards */
+.icon-circle {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.icon-circle i {
+    font-size: 1.5rem !important;
+}
+
+/* Consistent spacing for all stat cards */
+.stat-card .col-auto {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Use CSS variables for theme-compatible borders */
+.border-left-primary {
+    border-left: 4px solid var(--bs-primary) !important;
+}
+
+.border-start-success {
+    border-left: 4px solid var(--bs-success) !important;
+}
+
+.border-start-info {
+    border-left: 4px solid var(--bs-info) !important;
+}
+
+.border-start-warning {
+    border-left: 4px solid var(--bs-warning) !important;
+}
+
+/* Status badges with pulse effect */
+.badge.bg-success {
+    animation: pulse-success 2s infinite;
+}
+
+@keyframes pulse-success {
+    0% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+    70% { box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+}
+
+/* Responsive improvements for dashboard */
+@media (max-width: 768px) {
+    .hover-lift:hover {
+        transform: none;
+    }
+    
+    .card-body .row.no-gutters {
+        text-align: center;
+    }
+    
+    .card-body .row.no-gutters .col-auto {
+        margin-bottom: 1rem;
+    }
+}
+
+/* ===== ALERT & NOTIFICATION STYLES ===== */
+
+/* Alert positioning for theme switcher notifications */
+.alert-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    min-width: 300px;
+}
+
+/* ===== NAVIGATION SPECIFIC STYLES ===== */
+
+/* Navbar dropdown styling */
+.navbar .dropdown-toggle {
+    text-decoration: none !important;
+}
+
+/* ===== FOOTER SPECIFIC STYLES ===== */
+
+/* Full-width footer styling */
+.footer-full-width {
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    width: 100vw;
+}
+
+/* ===== LOGIN PAGE STYLES ===== */
+
+/* Login page specific styling */
+body.login-page {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.login-container {
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    border-radius: 15px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+.login-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.login-header img {
+    max-height: 60px;
+    margin-bottom: 1rem;
+}
+
+.login-header h2 {
+    color: #333;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.login-header p {
+    color: #666;
+    margin: 0;
+}
+
+.login-page .form-floating {
+    margin-bottom: 1rem;
+}
+
+.btn-login {
+    width: 100%;
+    padding: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-radius: 8px;
+}
+
+.login-page .alert {
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.footer-text {
+    text-align: center;
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #dee2e6;
+    color: #666;
+    font-size: 0.875rem;
+}
+
+/* ===== DARK MODE OVERLAY STYLES ===== */
+
+/* Dark mode CSS variables and overrides */
+body.dark-mode {
+    --bs-body-bg: #1a1a1a;
+    --bs-body-color: #e9ecef;
+    --bs-border-color: #343a40;
+    --bs-secondary-bg: #2d3748;
+    --bs-tertiary-bg: #343a40;
+}
+
+/* Dark mode overrides */
+.dark-mode {
+    background-color: #1a1a1a !important;
+    color: #e9ecef !important;
+}
+
+.dark-mode .card {
+    background-color: var(--bs-dark) !important;
+    border-color: var(--bs-dark-border-subtle) !important;
+}
+
+/* Use theme variables for card headers in dark mode */
+.dark-mode .card-header {
+    border-bottom-color: var(--bs-dark-border-subtle) !important;
+    color: var(--bs-white) !important;
+}
+
+.dark-mode .navbar-dark {
+    background-color: #000 !important;
+}
+
+.dark-mode .bg-white {
+    background-color: #2d3748 !important;
+}
+
+.dark-mode .text-dark {
+    color: #e9ecef !important;
+}
+
+.dark-mode .text-muted {
+    color: #a0aec0 !important;
+}
+
+.dark-mode .border {
+    border-color: #4a5568 !important;
+}
+
+.dark-mode .list-group-item {
+    background-color: #2d3748 !important;
+    border-color: #4a5568 !important;
+    color: #e9ecef !important;
+}
+
+.dark-mode .list-group-item:hover {
+    background-color: #343a40 !important;
+}
+
+.dark-mode .table {
+    color: #e9ecef !important;
+}
+
+.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > td,
+.dark-mode .table-striped > tbody > tr:nth-of-type(odd) > th {
+    background-color: #343a40 !important;
+}
+
+.dark-mode .form-control {
+    background-color: #343a40 !important;
+    border-color: #4a5568 !important;
+    color: #e9ecef !important;
+}
+
+.dark-mode .form-control:focus {
+    background-color: #2d3748 !important;
+    border-color: #718096 !important;
+    color: #e9ecef !important;
+}
+
+.dark-mode .btn-outline-secondary {
+    color: #a0aec0 !important;
+    border-color: #4a5568 !important;
+}
+
+.dark-mode .btn-outline-secondary:hover {
+    background-color: #4a5568 !important;
+    border-color: #718096 !important;
+}
+
+.dark-mode .dropdown-menu {
+    background-color: #2d3748 !important;
+    border-color: #4a5568 !important;
+}
+
+.dark-mode .dropdown-item {
+    color: #e9ecef !important;
+}
+
+.dark-mode .dropdown-item:hover {
+    background-color: #343a40 !important;
+}
+
+.dark-mode .modal-content {
+    background-color: #2d3748 !important;
+    border-color: #4a5568 !important;
+}
+
+.dark-mode .modal-header {
+    border-bottom-color: #4a5568 !important;
+}
+
+.dark-mode .modal-footer {
+    border-top-color: #4a5568 !important;
+}
+
+/* Dark mode login page adjustments */
+.dark-mode.login-page .login-container {
+    background: rgba(45, 55, 72, 0.95) !important;
+    color: #e9ecef !important;
+}
+
+.dark-mode.login-page .login-header h2 {
+    color: #e9ecef !important;
+}
+
+.dark-mode.login-page .login-header p {
+    color: #a0aec0 !important;
+}
+
+.dark-mode.login-page .footer-text {
+    color: #a0aec0 !important;
+    border-top-color: #4a5568 !important;
+}

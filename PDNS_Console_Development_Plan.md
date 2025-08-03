@@ -35,7 +35,106 @@ Development of a comprehensive web-based administration interface for PowerDNS w
 
 ### 2. Database Extensions
 
-#### 2.1 Admin Tables (New)
+The PDNS Console extends the standard PowerDNS MySQL schema with additional administrative tables while maintaining full compatibility with the original PowerDNS backend.
+
+#### 2.1 PowerDNS Core Tables (Required)
+These are the standard PowerDNS tables that must be present for PowerDNS operation:
+
+```sql
+-- Standard PowerDNS MySQL Backend Schema
+-- These tables are REQUIRED for PowerDNS operation and must be created first
+
+CREATE TABLE domains (
+  id                    INT AUTO_INCREMENT,
+  name                  VARCHAR(255) NOT NULL,
+  master                VARCHAR(128) DEFAULT NULL,
+  last_check            INT DEFAULT NULL,
+  type                  VARCHAR(8) NOT NULL,
+  notified_serial       INT UNSIGNED DEFAULT NULL,
+  account               VARCHAR(40) CHARACTER SET 'utf8' DEFAULT NULL,
+  options               VARCHAR(64000) DEFAULT NULL,
+  catalog               VARCHAR(255) DEFAULT NULL,
+  PRIMARY KEY (id)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE UNIQUE INDEX name_index ON domains(name);
+CREATE INDEX catalog_idx ON domains(catalog);
+
+CREATE TABLE records (
+  id                    BIGINT AUTO_INCREMENT,
+  domain_id             INT DEFAULT NULL,
+  name                  VARCHAR(255) DEFAULT NULL,
+  type                  VARCHAR(10) DEFAULT NULL,
+  content               VARCHAR(64000) DEFAULT NULL,
+  ttl                   INT DEFAULT NULL,
+  prio                  INT DEFAULT NULL,
+  disabled              TINYINT(1) DEFAULT 0,
+  ordername             VARCHAR(255) BINARY DEFAULT NULL,
+  auth                  TINYINT(1) DEFAULT 1,
+  PRIMARY KEY (id)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE INDEX nametype_index ON records(name,type);
+CREATE INDEX domain_id ON records(domain_id);
+CREATE INDEX ordername ON records (ordername);
+
+CREATE TABLE supermasters (
+  ip                    VARCHAR(64) NOT NULL,
+  nameserver            VARCHAR(255) NOT NULL,
+  account               VARCHAR(40) CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (ip, nameserver)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE TABLE comments (
+  id                    INT AUTO_INCREMENT,
+  domain_id             INT NOT NULL,
+  name                  VARCHAR(255) NOT NULL,
+  type                  VARCHAR(10) NOT NULL,
+  modified_at           INT NOT NULL,
+  account               VARCHAR(40) CHARACTER SET 'utf8' DEFAULT NULL,
+  comment               TEXT CHARACTER SET 'utf8' NOT NULL,
+  PRIMARY KEY (id)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE INDEX comments_name_type_idx ON comments (name, type);
+CREATE INDEX comments_order_idx ON comments (domain_id, modified_at);
+
+CREATE TABLE domainmetadata (
+  id                    INT AUTO_INCREMENT,
+  domain_id             INT NOT NULL,
+  kind                  VARCHAR(32),
+  content               TEXT,
+  PRIMARY KEY (id)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE INDEX domainmetadata_idx ON domainmetadata (domain_id, kind);
+
+CREATE TABLE cryptokeys (
+  id                    INT AUTO_INCREMENT,
+  domain_id             INT NOT NULL,
+  flags                 INT NOT NULL,
+  active                BOOL,
+  published             BOOL DEFAULT 1,
+  content               TEXT,
+  PRIMARY KEY(id)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE INDEX domainidindex ON cryptokeys(domain_id);
+
+CREATE TABLE tsigkeys (
+  id                    INT AUTO_INCREMENT,
+  name                  VARCHAR(255),
+  algorithm             VARCHAR(50),
+  secret                VARCHAR(255),
+  PRIMARY KEY (id)
+) Engine=InnoDB CHARACTER SET 'latin1';
+
+CREATE UNIQUE INDEX namealgoindex ON tsigkeys(name, algorithm);
+```
+
+#### 2.2 PDNS Console Administrative Tables (New)
+These tables extend PowerDNS functionality with multi-tenant administration capabilities:
+
 ```sql
 -- Admin users table
 CREATE TABLE admin_users (
@@ -221,7 +320,6 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('commercial_license_price', '50', 'Price for commercial license in USD', 'licensing'),
 ('license_enforcement', '1', 'Enable/disable license enforcement (1=enabled, 0=disabled)', 'licensing'),
 ('trial_period_days', '30', 'Trial period for commercial features in days', 'licensing'),
-('payment_processor', 'stripe', 'Payment processor for license purchases', 'licensing'),
 ('license_key_length', '32', 'Length of generated license keys', 'licensing');
 
 -- Initial custom record types
@@ -506,9 +604,34 @@ CREATE TABLE license_usage (
 - **Default Theme**: Standard Bootstrap 5 styling
 - **Bootswatch Integration**: CDN-based theme loading from jsdelivr
 - **Available Themes**: cerulean, cosmo, cyborg, darkly, flatly, journal, litera, lumen, lux, materia, minty, morph, pulse, quartz, sandstone, simplex, sketchy, slate, solar, spacelab, superhero, united, vapor, yeti, zephyr
-- **Theme Selection**: Admin configurable via settings interface
+- **Theme Selection**: Admin configurable via settings interface with live preview
 - **CSS Override**: Minimal custom CSS to maintain theme compatibility
 - **Dynamic Loading**: Theme CSS loaded based on database setting
+- **Dark Mode Support**: Separate toggle for dark mode independent of theme choice
+- **Theme Categories**: Organized into Light and Dark theme groups for better usability
+- **Theme Selector Modal**: Interactive theme selection with visual previews
+- **Detailed Documentation**: Complete theme system documentation in `/docs/Theme_Implementation.md`
+
+#### 9.3 CSS Architecture & Organization
+- **Centralized CSS**: All custom styles in `/webroot/assets/css/custom.css`
+- **No Inline Styles**: PHP files contain no `<style>` blocks or `style=""` attributes
+- **Organized Structure**:
+  ```
+  /* PDNS Console Custom CSS */
+  ├── Core card and form enhancements
+  ├── Layout & Navigation Styles (sidebar, navbar, main content)
+  ├── Utility Classes (text-xs, font-weight-bold, etc.)
+  ├── Icon Styles (Font Awesome and Bootstrap Icons)
+  ├── Layout Structure (sticky footer, flexbox layout)
+  ├── Theme-friendly Enhancements (hover effects, CSS variables)
+  ├── Dashboard-specific Styles (cards, lists, animations)
+  ├── Alert & Notification Styles
+  ├── Navigation Specific Styles
+  └── Footer Specific Styles
+  ```
+- **CSS Variables**: Uses `var(--bs-primary)`, `var(--bs-border-color)` for theme compatibility
+- **Maintainability**: Single source of truth for all custom styling
+- **Performance**: Single CSS file, no inline styles blocking rendering
 
 #### 9.3 DNS Default Values (Configurable)
 - **Primary Nameserver**: Default primary NS (configurable via settings)
@@ -539,44 +662,42 @@ CREATE TABLE license_usage (
 ### 10. Dashboard Layout & Navigation
 
 #### 10.1 Overall Layout Structure
-- **Left Sidebar**: Collapsible navigation menu (can stay open or collapse)
-- **Top Header Bar**: Fixed header with branding and user controls
-- **Main Content Area**: Central content area with breadcrumbs and page content
-- **Responsive Design**: Adapts to mobile devices with collapsing sidebar
+- **Card-Based Dashboard**: Modern card-based layout instead of traditional sidebar navigation
+- **Full-Width Header**: Fixed header with branding and user dropdown controls
+- **Main Content Area**: Central content area with 2x2 DNS management cards layout
+- **Sticky Footer**: Full-width footer with system status and copyright information
+- **Responsive Design**: Adapts to mobile devices with responsive card grid
 
 #### 10.2 Top Header Bar
 - **Left Side**: Logo and site name (white-labeled)
 - **Right Side**: User dropdown menu with profile/settings/logout
 - **User Menu Options**:
-  - Profile Settings
+  - Profile Settings (with Bootstrap Icons)
   - Two-Factor Authentication
   - Change Password
+  - Theme Selection (active theme switcher)
   - Logout
 - **Admin Menu** (Super Admin only):
-  - System Settings
-  - Global Configuration
-
-#### 10.3 Left Sidebar Navigation (Collapsible)
-- **Dashboard**: Overview and statistics
-- **Domains**: Domain management
-- **DNS Records**: Record management (context-sensitive)
-- **Dynamic DNS**: Token management and logs
-- **DNSSEC**: Key management (when applicable)
-- **Admin Functions** (Super Admin only):
   - User Management
   - Tenant Management
-  - Global Settings & Themes
-  - Custom Record Types
+  - Global Settings
   - Audit Logs
-- **Profile**: User profile and settings
 
-#### 10.4 Main Content Area Layout
-- **Breadcrumb Navigation**: Clear path indication
-- **Page Header**: Title and primary action buttons
-- **Content Cards**: Bootstrap cards for organized content sections
-- **Data Tables**: Sortable, filterable tables with pagination
-- **Modal Dialogs**: For forms and confirmations
-- **Alert Messages**: Success, error, warning notifications
+#### 10.3 Dashboard Card Layout (No Sidebar)
+- **Welcome Section**: User greeting with refresh and theme buttons
+- **2x2 DNS Management Cards**: Four main navigation cards in responsive grid
+  - **Domains Card**: Domain management with action buttons
+  - **DNS Records Card**: Record management interface
+  - **DNSSEC Card**: Security key management (Phase 4)
+  - **Dynamic DNS Card**: API token management (Phase 3)
+- **System Status Footer**: Sticky footer with license, version, and status information
+
+#### 10.4 Icon System & Visual Design
+- **Bootstrap Icons**: Clean, monochromatic icons that inherit text colors
+- **Professional Appearance**: Simple geometric shapes instead of colorful Font Awesome icons
+- **Consistent Styling**: All icons follow the same design language throughout interface
+- **Card-Based Navigation**: Large, touch-friendly cards with hover effects and subtle animations
+- **Modern Aesthetics**: Clean lines, proper spacing, and professional color scheme
 
 ### 11. Bulk Record Addition Interface
 
@@ -595,13 +716,17 @@ CREATE TABLE license_usage (
 - **Progress Indicator**: Show progress during batch submission
 
 ### 12. Responsive Design & Theming
-- Bootstrap 5 with Bootswatch theme support
-- Minimal custom CSS for maximum theme compatibility
-- CDN-based theme loading (https://cdn.jsdelivr.net/npm/bootswatch@5.3.7/dist/THEME/bootstrap.min.css)
-- Mobile-first approach maintaining theme consistency
-- Collapsible sidebar on mobile
-- Touch-friendly buttons and forms
-- Optimized tables for small screens
+- **Bootstrap 5 with Bootswatch theme support**: 26 available themes with live preview
+- **Centralized CSS Architecture**: All custom CSS consolidated in `/webroot/assets/css/custom.css`
+  - No inline styles in PHP files for better maintainability
+  - Organized sections: Layout, Navigation, Dashboard, Utilities, Icons, Themes
+  - CSS variables used throughout for theme compatibility
+  - Clean separation of concerns between content and presentation
+- **Theme-Compatible CSS**: Uses CSS variables (var(--bs-primary)) instead of hard-coded colors
+- **CDN-based theme loading**: `https://cdn.jsdelivr.net/npm/bootswatch@5.3.7/dist/THEME/bootstrap.min.css`
+- **Mobile-first approach**: Maintains theme consistency across all devices
+- **Touch-friendly interface**: Large buttons, cards, and form elements
+- **Optimized responsive tables**: Transforms into mobile-friendly lists on small screens
 
 ---
 
@@ -648,15 +773,21 @@ CREATE TABLE license_usage (
 ## Development Phases
 
 ### 14. Phase 1: Foundation (Weeks 1-2)
-- [ ] Database schema implementation with all tables (sessions, MFA, custom types)
-- [ ] Configuration management with sample files (.gitignore setup)
-- [ ] AES encryption system for sensitive data
-- [ ] Database session management system
-- [ ] White-label branding system with Bootswatch theme support
-- [ ] Basic authentication system
-- [ ] Two-Factor Authentication implementation with encryption
-- [ ] Application structure setup
-- [ ] User management (CRUD)
+- [x] **PowerDNS Core Schema**: Implement original PowerDNS tables (domains, records, supermasters, comments, domainmetadata, cryptokeys, tsigkeys)
+- [x] **PDNS Console Schema**: Database schema implementation with all administrative tables (sessions, MFA, custom types, licensing)
+- [x] Configuration management with sample files (.gitignore setup)
+- [x] AES encryption system for sensitive data
+- [x] Database session management system
+- [x] White-label branding system with Bootswatch theme support
+- [x] Basic authentication system
+- [x] Two-Factor Authentication implementation with encryption
+- [x] Application structure setup
+- [x] User management (CRUD)
+- [x] **Modern Dashboard Layout**: Card-based dashboard with Bootstrap Icons
+- [x] **Professional Icon System**: Bootstrap Icons integration throughout interface
+- [x] **Responsive 2x2 Layout**: DNS management cards in responsive grid
+- [x] **Sticky Footer Design**: Full-width footer with system status and branding
+- [x] **Active Theme Switcher**: Functional Bootswatch theme selection system with live preview
 - [ ] CLI MFA reset script
 
 ### 15. Phase 2: Core DNS Management (Weeks 3-4)

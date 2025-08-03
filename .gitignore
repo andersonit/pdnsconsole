@@ -1,1 +1,41 @@
+# PDNS Console - Git Ignore File
+
+# Configuration files (contain sensitive data)
 /config/config.php
+
+# Log files
+*.log
+/logs/
+
+# Cache files
+/cache/
+/tmp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Uploaded files
+/webroot/uploads/
+
+# Environment specific
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+*.sql

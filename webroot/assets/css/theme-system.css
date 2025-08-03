@@ -1,0 +1,263 @@
+/* 
+ * PDNS Console - Theme System CSS
+ * 
+ * This CSS handles:
+ * 1. Dark mode overlay implementation
+ * 2. Theme-compatible styling with CSS variables
+ * 3. Smooth transitions between themes
+ * 4. Theme selector UI components
+ */
+
+/* === Theme Transitions === */
+/* Removed transitions to prevent visual glitches during theme changes */
+
+/* === Theme Selector UI === */
+/* Simplified theme selector styling */
+
+/* Theme preview styling */
+#themePreview {
+    transition: all 0.3s ease;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    position: relative;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#themePreview::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-image: linear-gradient(rgba(255,255,255,0.1), rgba(0,0,0,0.1));
+    pointer-events: none;
+}
+
+#themeSearch {
+    border-radius: 20px;
+    padding-left: 1rem;
+}
+
+/* === Dark Mode Implementation === */
+/* Applied when dark_mode is enabled but using light theme */
+body.dark-mode {
+    /* Invert base colors */
+    --bs-body-bg: #222;
+    --bs-body-color: #e0e0e0;
+    color-scheme: dark;
+}
+
+/* Dark mode card overrides */
+body.dark-mode .card {
+    background-color: #333;
+    border-color: #444;
+}
+
+body.dark-mode .card-header {
+    background-color: #2a2a2a;
+    border-color: #444;
+}
+
+/* Dark mode theme selector overrides */
+body.dark-mode .theme-name-placeholder {
+    background: linear-gradient(135deg, #333 0%, #444 100%);
+    color: #adb5bd;
+}
+
+body.dark-mode .modal-content {
+    background-color: #333;
+    border-color: #444;
+}
+
+body.dark-mode .modal-header,
+body.dark-mode .modal-footer {
+    border-color: #444;
+}
+
+body.dark-mode .nav-tabs {
+    border-color: #444;
+}
+
+body.dark-mode .nav-tabs .nav-link.active {
+    background-color: #333;
+    color: #fff;
+    border-color: #444 #444 #333;
+}
+
+/* Dark mode table overrides */
+body.dark-mode .table {
+    color: #e0e0e0;
+}
+
+body.dark-mode .table-striped > tbody > tr:nth-of-type(odd) {
+    color: #e0e0e0;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+body.dark-mode .table-hover tbody tr:hover {
+    color: #fff;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Dark mode form controls */
+body.dark-mode .form-control,
+body.dark-mode .form-select,
+body.dark-mode .input-group-text {
+    background-color: #333;
+    border-color: #555;
+    color: #e0e0e0;
+}
+
+body.dark-mode .form-control:focus,
+body.dark-mode .form-select:focus {
+    background-color: #3a3a3a;
+    border-color: var(--bs-primary);
+    color: #fff;
+}
+
+/* Dark mode navbar */
+body.dark-mode .navbar-light {
+    background-color: #333 !important;
+}
+
+body.dark-mode .navbar-light .navbar-brand,
+body.dark-mode .navbar-light .navbar-nav .nav-link {
+    color: #e0e0e0;
+}
+
+body.dark-mode .navbar-light .navbar-nav .nav-link:hover {
+    color: #fff;
+}
+
+/* Dark mode modals */
+body.dark-mode .modal-content {
+    background-color: #333;
+    border-color: #444;
+}
+
+body.dark-mode .modal-header {
+    border-color: #444;
+}
+
+body.dark-mode .modal-footer {
+    border-color: #444;
+}
+
+/* Dark mode dropdowns */
+body.dark-mode .dropdown-menu {
+    background-color: #333;
+    border-color: #444;
+}
+
+body.dark-mode .dropdown-item {
+    color: #e0e0e0;
+}
+
+body.dark-mode .dropdown-item:hover {
+    background-color: #444;
+    color: #fff;
+}
+
+/* Dark mode list groups */
+body.dark-mode .list-group-item {
+    background-color: #333;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+/* Dark mode alerts */
+body.dark-mode .alert:not(.alert-primary):not(.alert-secondary):not(.alert-success):not(.alert-danger):not(.alert-warning):not(.alert-info) {
+    background-color: #333;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+/* === Simplified Theme Selector Styles === */
+/* Theme select dropdown styling */
+#themeSelect {
+    border-radius: 6px;
+    border: 1px solid rgba(0,0,0,0.2);
+    padding: 0.5rem;
+}
+
+/* Theme preview styling */
+#themePreview {
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+/* Dark mode toggle styling */
+#darkModeToggle {
+    cursor: pointer;
+    height: 1.5rem;
+    width: 3rem;
+}
+
+/* Search box styling */
+/* Theme selector form control styling */
+.modal-body .form-control,
+.modal-body .form-select {
+    border-radius: 6px;
+    padding: 0.5rem;
+}
+
+/* Dark mode switch custom styling */
+.form-check-input:checked {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
+/* Theme tab navigation improvements */
+#themeTabs .nav-link {
+    color: var(--bs-body-color);
+}
+
+#themeTabs .nav-link.active {
+    color: var(--bs-primary);
+    font-weight: 500;
+}
+
+body.dark-mode #themeTabs .nav-link {
+    color: #e0e0e0;
+}
+
+body.dark-mode #themeTabs .nav-link.active {
+    color: var(--bs-primary);
+    background-color: #2a2a2a;
+    border-color: #444 #444 #2a2a2a;
+}
+
+/* Toast modifications for dark mode */
+body.dark-mode .toast {
+    background-color: #333;
+    color: #e0e0e0;
+}
+
+/* === Media Queries for Theme Selector === */
+@media (max-width: 767.98px) {
+    .theme-grid {
+        max-height: 50vh;
+    }
+    
+    .theme-preview {
+        height: 80px;
+    }
+    
+    .theme-card .card-body {
+        padding: 0.75rem;
+    }
+    
+    .theme-card .card-body h6 {
+        font-size: 0.9rem;
+    }
+    
+    .theme-card .btn-group .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
