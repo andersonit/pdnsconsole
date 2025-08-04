@@ -1,0 +1,18 @@
+{
+    "name": "pdnsconsole/pdnsconsole",
+    "description": "PowerDNS Console Management System",
+    "type": "project",
+    "require": {
+        "robthree/twofactorauth": "^1.8"
+    },
+    "authors": [
+        {
+            "name": "Anderson IT"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "PDNSConsole\\": "webroot/classes/"
+        }
+    }
+}

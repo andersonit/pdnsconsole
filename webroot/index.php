@@ -74,27 +74,88 @@ if ($page === 'login') {
         exit;
     }
     
+    // Clear temp MFA session if requested
+    if (isset($_GET['clear_mfa'])) {
+        unset($_SESSION['temp_user_id']);
+        unset($_SESSION['temp_user_data']);
+        header('Location: ?page=login');
+        exit;
+    }
+    
     $loginError = '';
     $loginSuccess = '';
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
+        $mfaCode = trim($_POST['mfa_code'] ?? '');
+        $backupCode = trim($_POST['backup_code'] ?? '');
         
-        if (!empty($username) && !empty($password)) {
-            $authResult = $user->authenticate($username, $password);
+        // Check if this is MFA verification step
+        if (isset($_SESSION['temp_user_id']) && (!empty($mfaCode) || !empty($backupCode))) {
+            // MFA verification step - use temp session data
+            $userId = $_SESSION['temp_user_id'];
+            $tempUserData = $_SESSION['temp_user_data'];
+            $mfa = new MFA();
             
-            if ($authResult['success']) {
-                // Set session variables
-                $_SESSION['user_id'] = $authResult['user']['id'];
-                $_SESSION['username'] = $authResult['user']['username'];
-                $_SESSION['email'] = $authResult['user']['email'];
+            $mfaValid = false;
+            
+            if (!empty($mfaCode)) {
+                $mfaValid = $mfa->verifyCode($userId, $mfaCode);
+            } elseif (!empty($backupCode)) {
+                $mfaValid = $mfa->verifyBackupCode($userId, $backupCode);
+            }
+            
+            if ($mfaValid) {
+                // MFA verification successful
+                $_SESSION['user_id'] = $userId;
+                $_SESSION['username'] = $tempUserData['username'];
+                $_SESSION['email'] = $tempUserData['email'];
                 
-                // Redirect to dashboard (no token needed)
+                // Clear temp session data
+                unset($_SESSION['temp_user_id']);
+                unset($_SESSION['temp_user_data']);
+                
+                // Update last login
+                $user->updateLastLogin($userId);
+                
                 header('Location: ?page=dashboard');
                 exit;
             } else {
+                $loginError = 'Invalid 2FA code. Please try again.';
+                // Keep temp session for retry
+            }
+        } elseif (!empty($username) && !empty($password)) {
+            // Initial login step
+            $authResult = $user->authenticate($username, $password);
+            
+            if ($authResult['success']) {
+                $userId = $authResult['user']['id'];
+                $mfa = new MFA();
+                
+                // Check if user has MFA enabled
+                if ($mfa->isEnabled($userId)) {
+                    // User has MFA enabled - set up MFA step
+                    $_SESSION['temp_user_id'] = $userId;
+                    $_SESSION['temp_user_data'] = $authResult['user'];
+                    $loginSuccess = 'Password correct. Please enter your 2FA code.';
+                } else {
+                    // No MFA - direct login
+                    $_SESSION['user_id'] = $userId;
+                    $_SESSION['username'] = $authResult['user']['username'];
+                    $_SESSION['email'] = $authResult['user']['email'];
+                    
+                    // Update last login
+                    $user->updateLastLogin($userId);
+                    
+                    header('Location: ?page=dashboard');
+                    exit;
+                }
+            } else {
                 $loginError = $authResult['error'];
+                // Clear any temp session data on password failure
+                unset($_SESSION['temp_user_id']);
+                unset($_SESSION['temp_user_data']);
             }
         } else {
             $loginError = 'Please enter username and password';
@@ -125,9 +186,11 @@ $pageRoutes = [
     'profile' => 'console/profile.php',
     
     // Admin pages (super admin only)
+    'admin_dashboard' => 'console/admin/dashboard.php',
     'admin_users' => 'console/admin/users.php',
     'admin_tenants' => 'console/admin/tenants.php',
     'admin_settings' => 'console/admin/settings.php',
+    'admin_system' => 'console/admin/system.php',
     'admin_record_types' => 'console/admin/record_types.php',
     'admin_audit' => 'console/admin/audit.php',
 ];

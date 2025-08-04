@@ -1,6 +1,76 @@
 /* PDNS Console Custom CSS */
 
+/* Bootstrap Icons Fix - Ensure proper font loading */
+@import url('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css');
+
+/* Additional Bootstrap Icons loading fixes */
+@font-face {
+    font-family: "bootstrap-icons";
+    src: url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff2") format("woff2"),
+         url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff") format("woff");
+}
+
+[class^="bi-"], [class*=" bi-"] {
+    font-family: "bootstrap-icons" !important;
+    font-style: normal;
+    font-weight: normal;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    vertical-align: -.125em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure Bootstrap Icons are visible */
+.bi::before {
+    display: inline-block;
+    font-family: "bootstrap-icons" !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    vertical-align: -.125em;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 /* Remove all card styling to let themes control appearance completely */
+
+/* Ensure background opacity classes work properly - with fallback colors */
+.bg-primary.bg-opacity-10 {
+    background-color: rgba(var(--bs-primary-rgb, 13, 110, 253), 0.1) !important;
+}
+
+.bg-success.bg-opacity-10 {
+    background-color: rgba(var(--bs-success-rgb, 25, 135, 84), 0.1) !important;
+}
+
+.bg-info.bg-opacity-10 {
+    background-color: rgba(var(--bs-info-rgb, 13, 202, 240), 0.1) !important;
+}
+
+.bg-warning.bg-opacity-10 {
+    background-color: rgba(var(--bs-warning-rgb, 255, 193, 7), 0.1) !important;
+}
+
+/* Additional fallback using hex colors for better compatibility */
+.bg-primary.bg-opacity-10 {
+    background-color: rgba(13, 110, 253, 0.1) !important;
+}
+
+.bg-success.bg-opacity-10 {
+    background-color: rgba(25, 135, 84, 0.1) !important;
+}
+
+.bg-info.bg-opacity-10 {
+    background-color: rgba(13, 202, 240, 0.1) !important;
+}
+
+.bg-warning.bg-opacity-10 {
+    background-color: rgba(255, 193, 7, 0.1) !important;
+}
 
 .sidebar-heading {
     font-size: 0.75rem;

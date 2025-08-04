@@ -39,3 +39,6 @@ Thumbs.db
 *.bak
 *.backup
 *.sql
+
+# Composer dependencies
+/vendor/

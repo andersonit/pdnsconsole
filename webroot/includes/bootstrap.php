@@ -5,9 +5,13 @@
  * Initialize database session handler and start sessions
  */
 
+// Mark that PDNS Console is properly loaded
+define('PDNS_CONSOLE_LOADED', true);
+
 // Load configuration and core classes
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../config/app.php';
+require_once __DIR__ . '/../../vendor/autoload.php'; // Composer autoload
 require_once __DIR__ . '/../classes/Database.php';
 require_once __DIR__ . '/../classes/DatabaseSessionHandler.php';
 
@@ -29,5 +33,9 @@ session_start();
 // Initialize other core classes
 require_once __DIR__ . '/../classes/Encryption.php';
 require_once __DIR__ . '/../classes/Settings.php';
+require_once __DIR__ . '/../classes/AuditLog.php';
+require_once __DIR__ . '/../classes/MFA.php';
 require_once __DIR__ . '/../classes/User.php';
+require_once __DIR__ . '/../classes/Domain.php';
+require_once __DIR__ . '/../classes/Records.php';
 ?>

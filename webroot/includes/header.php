@@ -26,24 +26,18 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     <!-- Bootstrap CSS Theme -->
     <link href="<?php echo $settings->getThemeUrl(); ?>" rel="stylesheet" id="theme-stylesheet" data-theme="<?php echo htmlspecialchars($settings->getCurrentTheme()); ?>">
     
-    <!-- Font Awesome -->
-        <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
     <!-- Bootstrap Icons -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" crossorigin="anonymous">
     
-    <!-- Font Awesome (fallback) -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer">
-    
-    <!-- Fallback Font Awesome from different CDN -->
-    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v6.4.0/css/all.css" crossorigin="anonymous">
+    <!-- Bootstrap Icons Fallback -->
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff" as="font" type="font/woff" crossorigin="anonymous">
     
     <!-- Custom CSS -->
-    <link href="assets/css/custom.css" rel="stylesheet">
+    <link href="/assets/css/custom.css" rel="stylesheet">
     
     <!-- Theme System CSS -->
-    <link href="assets/css/theme-system.css" rel="stylesheet">
+    <link href="/assets/css/theme-system.css" rel="stylesheet">
     
     <!-- CSRF Token for JavaScript -->
     <script>
@@ -219,8 +213,8 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
         
         // Add some interactive enhancements
         document.addEventListener('DOMContentLoaded', function() {
-            // Check if Font Awesome is loaded
-            checkFontAwesome();
+            // Debug Bootstrap Icons loading (temporarily disabled)
+            // checkBootstrapIcons();
             
             // Add tooltips to buttons
             var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -229,70 +223,58 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
             });
         });
         
-        // Check if Font Awesome is loaded and provide fallbacks
-        function checkFontAwesome() {
-            // Create a test element to check if FA is loaded
+        // Check if Bootstrap Icons are loading properly
+        function checkBootstrapIcons() {
+            // Create a test element to check Bootstrap Icons
             var testElement = document.createElement('i');
-            testElement.className = 'fas fa-home';
+            testElement.className = 'bi bi-house';
             testElement.style.position = 'absolute';
             testElement.style.left = '-9999px';
+            testElement.style.fontSize = '16px';
             document.body.appendChild(testElement);
             
-            // Check if the icon is rendered
+            // Check if the icon is rendered after a delay
             setTimeout(function() {
                 var computedStyle = window.getComputedStyle(testElement, ':before');
                 var content = computedStyle.getPropertyValue('content');
+                var fontFamily = computedStyle.getPropertyValue('font-family');
+                
+                console.log('Bootstrap Icons check:', {
+                    content: content,
+                    fontFamily: fontFamily,
+                    element: testElement
+                });
                 
                 if (!content || content === 'none' || content === '""') {
-                    console.warn('Font Awesome not loaded, using fallbacks');
-                    useFallbackIcons();
+                    console.warn('Bootstrap Icons not rendering properly');
+                    // Force reload Bootstrap Icons
+                    reloadBootstrapIcons();
                 } else {
-                    console.log('Font Awesome loaded successfully');
+                    console.log('Bootstrap Icons loaded successfully');
                 }
                 
                 document.body.removeChild(testElement);
-            }, 100);
+            }, 500);
         }
         
-        // Use fallback icons when Font Awesome fails to load
-        function useFallbackIcons() {
-            const iconMap = {
-                'fa-user': '👤',
-                'fa-user-circle': '👤',
-                'fa-user-edit': '✏️',
-                'fa-shield-alt': '🛡️',
-                'fa-key': '🔑',
-                'fa-palette': '🎨',
-                'fa-crown': '👑',
-                'fa-users': '👥',
-                'fa-building': '🏢',
-                'fa-cog': '⚙️',
-                'fa-clipboard-list': '📋',
-                'fa-sign-out-alt': '🚪',
-                'fa-globe': '🌍',
-                'fa-dns': '🌐',
-                'fa-chart-bar': '📊',
-                'fa-heartbeat': '💗',
-                'fa-plus-circle': '➕',
-                'fa-eye': '👁️',
-                'fa-search': '🔍',
-                'fa-plus': '➕',
-                'fa-rocket': '🚀',
-                'fa-check-circle': '✅',
-                'fa-circle-notch': '⏳'
-            };
+        // Force reload Bootstrap Icons
+        function reloadBootstrapIcons() {
+            console.log('Attempting to reload Bootstrap Icons...');
             
-            // Replace all Font Awesome icons with emoji fallbacks
-            document.querySelectorAll('[class*="fa-"]').forEach(function(element) {
-                const classes = element.className.split(' ');
-                const faClass = classes.find(cls => cls.startsWith('fa-') && cls !== 'fas' && cls !== 'far' && cls !== 'fab');
-                
-                if (faClass && iconMap[faClass]) {
-                    element.innerHTML = iconMap[faClass];
-                    element.className = element.className.replace(/fa[srlbdt]?\s+fa-[\w-]+/g, '');
-                    element.style.fontFamily = 'inherit';
-                }
-            });
+            // Remove existing Bootstrap Icons link
+            var existingLink = document.querySelector('link[href*="bootstrap-icons"]');
+            if (existingLink) {
+                existingLink.remove();
+            }
+            
+            // Add new Bootstrap Icons link with cache busting
+            var newLink = document.createElement('link');
+            newLink.rel = 'stylesheet';
+            newLink.href = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css?v=' + Date.now();
+            newLink.crossOrigin = 'anonymous';
+            document.head.appendChild(newLink);
+            
+            console.log('Bootstrap Icons CSS reloaded');
         }
     </script>
     
@@ -326,12 +308,6 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
                     <li><a class="dropdown-item" href="?page=profile">
                         <i class="bi bi-person-gear me-2"></i>Profile Settings
                     </a></li>
-                    <li><a class="dropdown-item" href="?page=profile&tab=security">
-                        <i class="bi bi-shield-lock me-2"></i>Security & 2FA
-                    </a></li>
-                    <li><a class="dropdown-item" href="?page=profile&tab=password">
-                        <i class="bi bi-key me-2"></i>Change Password
-                    </a></li>
                     <li><a class="dropdown-item" href="#" onclick="toggleTheme()">
                         <i class="bi bi-palette me-2"></i>Theme Selection
                     </a></li>
@@ -341,6 +317,9 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
                         <i class="bi bi-award me-2"></i>
                         Super Admin
                     </h6></li>
+                    <li><a class="dropdown-item" href="?page=admin_dashboard">
+                        <i class="bi bi-speedometer2 me-2"></i>System Administration
+                    </a></li>
                     <li><a class="dropdown-item" href="?page=admin_users">
                         <i class="bi bi-people me-2"></i>User Management
                     </a></li>

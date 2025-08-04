@@ -37,6 +37,8 @@ Development of a comprehensive web-based administration interface for PowerDNS w
 
 The PDNS Console extends the standard PowerDNS MySQL schema with additional administrative tables while maintaining full compatibility with the original PowerDNS backend.
 
+**Key Enhancement**: The `domains` table has been extended with a `zone_type` field (`ENUM('forward', 'reverse')`) to support reverse DNS zones for IP address management, enabling proper filtering of PTR records and zone-specific functionality.
+
 #### 2.1 PowerDNS Core Tables (Required)
 These are the standard PowerDNS tables that must be present for PowerDNS operation:
 
@@ -50,6 +52,7 @@ CREATE TABLE domains (
   master                VARCHAR(128) DEFAULT NULL,
   last_check            INT DEFAULT NULL,
   type                  VARCHAR(8) NOT NULL,
+  zone_type             ENUM('forward', 'reverse') NOT NULL DEFAULT 'forward',
   notified_serial       INT UNSIGNED DEFAULT NULL,
   account               VARCHAR(40) CHARACTER SET 'utf8' DEFAULT NULL,
   options               VARCHAR(64000) DEFAULT NULL,
@@ -416,12 +419,16 @@ CREATE TABLE license_usage (
 │   ├── dnssec/
 │   │   ├── manage.php     # DNSSEC management
 │   │   └── keys.php       # Key management
-│   ├── admin/             # Super admin only
-│   │   ├── users.php      # User management
-│   │   ├── tenants.php    # Tenant management
-│   │   ├── settings.php   # Global settings (including branding & themes)
+│   ├── admin/             # System Administration Dashboard
+│   │   ├── dashboard.php  # System admin dashboard
+│   │   ├── users.php      # User management (create, edit, assign roles)
+│   │   ├── tenants.php    # Tenant management (create, edit, domain limits)
+│   │   ├── settings.php   # Global DNS settings (nameservers, SOA defaults)
+│   │   ├── branding.php   # White-label branding and theme management
 │   │   ├── record_types.php # Custom record type management
-│   │   └── audit.php      # Audit log
+│   │   ├── audit.php      # System audit logs and activity monitoring
+│   │   ├── licenses.php   # License management and domain usage
+│   │   └── system.php     # System information and maintenance tools
 │   └── profile.php        # User profile and 2FA settings
 ├── api/
 │   ├── domains.php        # Domain API endpoints
@@ -442,8 +449,9 @@ CREATE TABLE license_usage (
 ### 4. Authentication & Authorization
 
 #### 4.1 User Roles
-- **Super Admin**: Full system access, tenant management, global settings
-- **Tenant Admin**: Access only to assigned tenant domains
+- **Super Admin**: Full system access, tenant management, global settings, system administration
+- **Tenant Admin**: Full access to assigned tenant domains and users
+- **Tenant User**: Limited access to assigned tenant domains (read-only or specific permissions)
 
 #### 4.2 Authentication Flow
 1. Login with username/email and password (stored in MySQL)
@@ -591,16 +599,93 @@ CREATE TABLE license_usage (
 - **Template**: Downloadable CSV template with proper headers
 - **Supported Formats**: Standard DNS record format (Name, Type, Content, TTL, Priority)
 
-### 9. Global Settings & White-Labeling
+### 9. System Administration Dashboard
 
-#### 9.1 White-Label Branding & Theming
+#### 9.1 Admin Dashboard Overview
+- **Centralized Control Panel**: Dedicated dashboard for super administrators
+- **System Statistics**: Overview of total domains, users, tenants, and system health
+- **Quick Actions**: Fast access to common administrative tasks
+- **Recent Activity**: Summary of recent system changes and user activity
+- **System Alerts**: License status, domain limits, and maintenance notifications
+
+#### 9.2 User & Role Management
+- **User Administration**: 
+  - Create, edit, and deactivate admin users
+  - Assign roles: Super Admin, Tenant Admin, Tenant User
+  - Password reset and 2FA management for users
+  - User activity monitoring and session management
+- **Role-Based Permissions**:
+  - Super Admin: Full system access and configuration
+  - Tenant Admin: Full control over assigned tenant(s)
+  - Tenant User: Limited access to specific domains within tenant
+- **User Assignment**: Assign users to specific tenants and set domain permissions
+
+#### 9.3 Tenant Management Interface
+- **Tenant Operations**:
+  - Create and configure tenant organizations
+  - Set domain limits per tenant (0 = unlimited)
+  - Assign users to tenants with specific roles
+  - Monitor tenant domain usage and statistics
+- **Domain Allocation**: Track and manage domain distribution across tenants
+- **Tenant Activity**: Monitor tenant-specific DNS operations and changes
+
+#### 9.4 Global System Settings
+- **DNS Configuration**:
+  - Default nameservers (primary and secondary)
+  - SOA record defaults (contact, refresh, retry, expire, minimum)
+  - Default TTL values for new records
+  - Global DNS validation rules and restrictions
+- **System Defaults**:
+  - Session timeout and security settings
+  - Password policy requirements
+  - Records per page and display preferences
+  - Audit log retention policies
+
+#### 9.5 System Monitoring & Audit
+- **Audit Log Viewer**:
+  - Comprehensive activity logging across all users and tenants
+  - Filterable by user, action type, date range, and tenant
+  - Export audit logs for compliance and analysis
+  - Real-time activity monitoring
+- **System Health**:
+  - Database connectivity and performance metrics
+  - License status and domain usage tracking
+  - System resource monitoring and alerts
+  - Backup status and data integrity checks
+
+#### 9.6 License & Usage Management
+- **License Overview**: Current license status, domain limits, and usage statistics
+- **Domain Usage Tracking**: Monitor domain allocation across all tenants
+- **License Enforcement**: Configure domain limits and enforcement policies
+- **Usage Reports**: Generate reports on system utilization and growth trends
+
+#### 9.7 White-Label & Branding Management
+- **Brand Customization**:
+  - Site name, logo, and company branding
+  - Footer text and copyright information
+  - Theme selection with live preview
+  - Custom CSS overrides and styling
+- **Theme Management**: 
+  - Bootswatch theme selection and preview
+  - Dark mode configuration
+  - Custom CSS file management
+
+#### 9.8 System Administration Access Control
+- **Admin Menu Integration**: Seamless access from main dashboard for super admins
+- **Security Controls**: Admin-only pages with additional authentication checks
+- **Activity Logging**: All administrative actions logged for audit purposes
+- **Role Validation**: Strict role-based access control for all admin functions
+
+### 10. Global Settings & White-Labeling
+
+#### 10.1 White-Label Branding & Theming
 - **Site Name**: Configurable site name in header and page titles
 - **Logo**: Uploadable logo image with fallback to default
 - **Company Name**: Customizable company branding
 - **Footer Text**: Configurable footer text
 - **Bootstrap Themes**: Support for default Bootstrap and Bootswatch themes
 
-#### 9.2 Theme System
+#### 10.2 Theme System
 - **Default Theme**: Standard Bootstrap 5 styling
 - **Bootswatch Integration**: CDN-based theme loading from jsdelivr
 - **Available Themes**: cerulean, cosmo, cyborg, darkly, flatly, journal, litera, lumen, lux, materia, minty, morph, pulse, quartz, sandstone, simplex, sketchy, slate, solar, spacelab, superhero, united, vapor, yeti, zephyr
@@ -612,7 +697,7 @@ CREATE TABLE license_usage (
 - **Theme Selector Modal**: Interactive theme selection with visual previews
 - **Detailed Documentation**: Complete theme system documentation in `/docs/Theme_Implementation.md`
 
-#### 9.3 CSS Architecture & Organization
+#### 10.3 CSS Architecture & Organization
 - **Centralized CSS**: All custom styles in `/webroot/assets/css/custom.css`
 - **No Inline Styles**: PHP files contain no `<style>` blocks or `style=""` attributes
 - **Organized Structure**:
@@ -633,7 +718,7 @@ CREATE TABLE license_usage (
 - **Maintainability**: Single source of truth for all custom styling
 - **Performance**: Single CSS file, no inline styles blocking rendering
 
-#### 9.3 DNS Default Values (Configurable)
+#### 10.4 DNS Default Values (Configurable)
 - **Primary Nameserver**: Default primary NS (configurable via settings)
 - **Secondary Nameserver**: Default secondary NS (configurable via settings)
 - **SOA Contact**: Default SOA contact email
@@ -641,7 +726,7 @@ CREATE TABLE license_usage (
 - **SOA Values**: Refresh, retry, expire, minimum TTL intervals
 - **All values stored in database** and editable through admin interface
 
-#### 9.4 System Settings
+#### 10.5 System Settings
 - Session timeout duration
 - Password policy requirements
 - Audit log retention period
@@ -649,7 +734,7 @@ CREATE TABLE license_usage (
 - Records per page display
 - Custom record type management
 
-#### 9.5 Installation Flexibility
+#### 10.6 Installation Flexibility
 - **Relative Paths**: All paths relative for flexible installation
 - **Root or Subdirectory**: Can be installed in domain root or subdirectory
 - **Portable**: Designed for easy deployment on any domain
@@ -659,16 +744,16 @@ CREATE TABLE license_usage (
 
 ## User Interface Design
 
-### 10. Dashboard Layout & Navigation
+### 11. User Interface Design
 
-#### 10.1 Overall Layout Structure
+#### 11.1 Dashboard Layout & Navigation
 - **Card-Based Dashboard**: Modern card-based layout instead of traditional sidebar navigation
 - **Full-Width Header**: Fixed header with branding and user dropdown controls
 - **Main Content Area**: Central content area with 2x2 DNS management cards layout
 - **Sticky Footer**: Full-width footer with system status and copyright information
 - **Responsive Design**: Adapts to mobile devices with responsive card grid
 
-#### 10.2 Top Header Bar
+#### 11.2 Top Header Bar
 - **Left Side**: Logo and site name (white-labeled)
 - **Right Side**: User dropdown menu with profile/settings/logout
 - **User Menu Options**:
@@ -678,12 +763,17 @@ CREATE TABLE license_usage (
   - Theme Selection (active theme switcher)
   - Logout
 - **Admin Menu** (Super Admin only):
-  - User Management
-  - Tenant Management
-  - Global Settings
-  - Audit Logs
+  - System Administration Dashboard
+  - User Management (create, edit, roles, 2FA reset)
+  - Tenant Management (create, edit, domain limits)
+  - Global DNS Settings (nameservers, SOA defaults)
+  - White-Label Branding & Themes
+  - Custom Record Types Management
+  - System Audit Logs & Activity
+  - License Management & Usage
+  - System Information & Maintenance
 
-#### 10.3 Dashboard Card Layout (No Sidebar)
+#### 11.3 Dashboard Card Layout (No Sidebar)
 - **Welcome Section**: User greeting with refresh and theme buttons
 - **2x2 DNS Management Cards**: Four main navigation cards in responsive grid
   - **Domains Card**: Domain management with action buttons
@@ -692,30 +782,47 @@ CREATE TABLE license_usage (
   - **Dynamic DNS Card**: API token management (Phase 3)
 - **System Status Footer**: Sticky footer with license, version, and status information
 
-#### 10.4 Icon System & Visual Design
+#### 11.4 System Administration Dashboard (Super Admin Only)
+- **Admin Statistics Cards**: System overview with key metrics
+  - Total users across all tenants
+  - Total domains and usage statistics
+  - License status and domain limits
+  - System health indicators
+- **Quick Administration Actions**: Fast access to common tasks
+  - Create new user or tenant
+  - View recent system activity
+  - Generate usage reports
+  - System maintenance shortcuts
+- **Administrative Navigation**: Organized management sections
+  - User & Tenant Management
+  - DNS & System Configuration
+  - Monitoring & Audit Tools
+  - License & Usage Tracking
+
+#### 11.5 Icon System & Visual Design
 - **Bootstrap Icons**: Clean, monochromatic icons that inherit text colors
 - **Professional Appearance**: Simple geometric shapes instead of colorful Font Awesome icons
 - **Consistent Styling**: All icons follow the same design language throughout interface
 - **Card-Based Navigation**: Large, touch-friendly cards with hover effects and subtle animations
 - **Modern Aesthetics**: Clean lines, proper spacing, and professional color scheme
 
-### 11. Bulk Record Addition Interface
+### 12. Bulk Record Addition Interface
 
-#### 11.1 Add Multiple Records Page
+#### 12.1 Add Multiple Records Page
 - **Dynamic Form**: JavaScript-powered form with "Add Another Record" functionality
 - **Record Type Selection**: Dropdown per row with type-specific fields
 - **Validation**: Real-time validation per row before submission
 - **Preview**: Summary table showing all records to be added
 - **Batch Submission**: Single submit button for all records at once
 
-#### 11.2 Form Features
+#### 12.2 Form Features
 - **Add/Remove Rows**: Add or remove record rows dynamically
 - **Field Templates**: Auto-populate fields based on record type
 - **Duplicate Detection**: Warn about potential duplicate records
 - **Validation Summary**: Show all validation errors before submission
 - **Progress Indicator**: Show progress during batch submission
 
-### 12. Responsive Design & Theming
+### 13. Responsive Design & Theming
 - **Bootstrap 5 with Bootswatch theme support**: 26 available themes with live preview
 - **Centralized CSS Architecture**: All custom CSS consolidated in `/webroot/assets/css/custom.css`
   - No inline styles in PHP files for better maintainability
@@ -732,15 +839,15 @@ CREATE TABLE license_usage (
 
 ## Security Implementation
 
-### 13. Security Measures
+### 14. Security Implementation
 
-#### 13.1 Input Security
+#### 14.1 Security Measures
 - SQL injection prevention (prepared statements)
 - XSS protection (output escaping)
 - CSRF tokens on all forms
 - Input validation and sanitization
 
-#### 13.2 Authentication Security
+#### 14.2 Authentication Security
 - Password hashing (PHP password_hash())
 - Two-Factor Authentication (TOTP) with encrypted backup codes
 - Database session management with automatic cleanup
@@ -751,18 +858,18 @@ CREATE TABLE license_usage (
 - MFA reset capabilities for admins
 - Multi-server session support for load balancers
 
-#### 13.3 Authorization Security
+#### 14.3 Authorization Security
 - Role-based access control
 - Tenant isolation (data segregation)
 - SQL-level tenant filtering
 - Audit logging for all actions
 
-#### 13.4 Network Security
+#### 14.4 Network Security
 - HTTPS enforcement
 - Content Security Policy headers
 - Security headers (HSTS, X-Frame-Options)
 
-#### 13.5 API Security
+#### 14.5 API Security
 - Secure token generation and storage
 - ddclient-compatible authentication
 - Rate limiting: 3 requests/3min, then 1 request/10min
@@ -772,7 +879,9 @@ CREATE TABLE license_usage (
 
 ## Development Phases
 
-### 14. Phase 1: Foundation (Weeks 1-2)
+### 15. Development Phases
+
+#### 15.1 Phase 1: Foundation (Weeks 1-2)
 - [x] **PowerDNS Core Schema**: Implement original PowerDNS tables (domains, records, supermasters, comments, domainmetadata, cryptokeys, tsigkeys)
 - [x] **PDNS Console Schema**: Database schema implementation with all administrative tables (sessions, MFA, custom types, licensing)
 - [x] Configuration management with sample files (.gitignore setup)
@@ -788,29 +897,37 @@ CREATE TABLE license_usage (
 - [x] **Responsive 2x2 Layout**: DNS management cards in responsive grid
 - [x] **Sticky Footer Design**: Full-width footer with system status and branding
 - [x] **Active Theme Switcher**: Functional Bootswatch theme selection system with live preview
-- [ ] CLI MFA reset script
+- [x] CLI MFA reset script
 
-### 15. Phase 2: Core DNS Management (Weeks 3-4)
-- [ ] Dashboard layout with collapsible sidebar and theme support
-- [ ] Domain management interface with tenant limits
-- [ ] Basic record types (A, AAAA, CNAME, MX) with enhanced validation
-- [ ] TXT record validation (SPF, DKIM, DMARC detection and validation)
-- [ ] Bulk record addition interface
-- [ ] Input validation system with custom record type support
-- [ ] Tenant isolation implementation
+#### 15.2 Phase 2: Core DNS Management (Weeks 3-4)
+- [x] Dashboard layout with theme support
+- [x] Domain management interface with tenant limits
+- [x] Basic record types (A, AAAA, CNAME, MX, TXT, NS, PTR, SRV) with enhanced validation
+- [x] TXT record validation (SPF, DKIM, DMARC detection and validation)
+- [x] Input validation system with custom record type support
+- [x] Tenant isolation implementation
+- [x] DNS Records management system with search and filtering
+- [x] Domain CRUD operations (Create, Read, Update, Delete)
+- [x] Records CRUD operations with conflict detection
+- [x] Automatic SOA serial number updates
+- [x] Record statistics and pagination
+- [x] Bulk record addition interface
 - [ ] Dashboard with statistics and domain usage
+- [x] **System Administration Dashboard**: Super admin interface with user/tenant management, global settings, and system monitoring
 
-### 16. Phase 3: Advanced Features (Weeks 5-6)
-- [ ] Advanced record types (SRV, PTR - NS/SOA managed automatically)
-- [ ] Custom record type management interface (NAPTR, CAA, TLSA, etc.)
+#### 15.3 Phase 3: Advanced Features (Weeks 5-6)
+- [x] **Advanced record types (SRV, PTR - NS/SOA managed automatically)**
+- [x] **Custom record type management interface** (NAPTR, CAA, TLSA, etc.)
+- [x] **Reverse DNS zone support** (IPv4/IPv6 subnet-based zone creation with .in-addr.arpa/.ip6.arpa)
+- [x] **Zone type filtering** (PTR records only for reverse zones, excluded from forward zones)
+- [x] **Audit logging** (Comprehensive system-wide logging for domains, records, users, tenants, and settings)
 - [ ] Global settings management interface with theme selection
 - [ ] CSV import/export with filtering (no NS/SOA, update existing records)
 - [ ] Dynamic DNS API endpoints (ddclient compatible, A/AAAA records)
 - [ ] Rate limiting implementation (3/3min, then 1/10min)
 - [ ] Search and filtering
-- [ ] Audit logging
 
-### 17. Phase 4: DNSSEC & Polish (Weeks 7-8)
+#### 15.4 Phase 4: DNSSEC & Polish (Weeks 7-8)
 - [ ] DNSSEC key management (ECDSA P-256, 12-month rotation)
 - [ ] Key generation and activation
 - [ ] DNSKEY/DS record display and export
@@ -821,7 +938,7 @@ CREATE TABLE license_usage (
 
 ---
 
-### 20. Phase 5: Licensing & Monetization (Weeks 9-10)
+#### 15.5 Phase 5: Licensing & Monetization (Weeks 9-10)
 - [ ] RSA key pair generation and public key embedding
 - [ ] License key generation tool (your side) with command-line interface
 - [ ] License validation system implementation with digital signature verification
@@ -833,14 +950,14 @@ CREATE TABLE license_usage (
 - [ ] License upgrade prompts and commercial pricing display
 - [ ] License recovery and transfer system for customer support
 
-### 21. Licensing System Architecture
+### 16. Licensing System Architecture
 
-#### 21.1 License Types
+#### 16.1 License Types
 - **Free License**: 5 domains maximum, all core features included
 - **Commercial License**: Unlimited domains, $50 one-time purchase
 - **Trial Period**: 30-day trial of commercial features
 
-#### 21.2 License Key System (Offline Validation)
+#### 16.2 License Key System (Offline Validation)
 - **Key Format**: `PDNS-COM-[BASE64_DATA]-[SIGNATURE]`
 - **Cryptographic Signing**: RSA digital signatures for tamper-proof keys
 - **Embedded Data**: Customer email, license type, domain limits, issue date
@@ -848,14 +965,14 @@ CREATE TABLE license_usage (
 - **Public Key**: Embedded in application code for signature verification
 - **Installation Fingerprinting**: Unique installation ID based on server characteristics
 
-#### 21.3 License Enforcement
+#### 16.3 License Enforcement
 - Domain count validation on domain creation attempts
 - Real-time license status checking during critical operations
 - Installation fingerprint binding (max 3 activations per key)
 - Soft warnings before hard limits are reached
 - Grace period for license issues (7-day warning period)
 
-#### 21.4 Anti-Piracy Measures
+#### 16.4 Anti-Piracy Measures
 - **Digital Signatures**: Cannot forge keys without private key access
 - **Installation Binding**: Keys tied to specific server installations
 - **Usage Monitoring**: Track domain counts and activation attempts
@@ -863,16 +980,16 @@ CREATE TABLE license_usage (
 - **Embedded Customer Data**: Email and purchase info in license key
 - **Basic Code Protection**: License validation spread across multiple functions
 
-#### 21.5 License Management Interface
+#### 16.5 License Management Interface
 - Current license status display with domain usage
 - License key entry and validation form
 - Upgrade options and commercial pricing display
 - Installation fingerprint display for support
 - License activation history and status
 
-### 22. License Key Implementation Details
+### 17. License Key Implementation Details
 
-#### 22.1 License Key Generation (Your Side)
+#### 17.1 License Key Generation (Your Side)
 ````php
 <?php
 // License Generator Tool (run on your computer)
@@ -913,7 +1030,7 @@ class LicenseGenerator {
 // echo "License Key: " . $license;
 ````
 
-#### 22.2 License Key Validation (In PDNS Console)
+#### 17.2 License Key Validation (In PDNS Console)
 ````php
 <?php
 class LicenseValidator {
@@ -966,7 +1083,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA...
 }
 ````
 
-#### 22.3 License Enforcement System
+#### 17.3 License Enforcement System
 ````php
 <?php
 class LicenseManager {
@@ -1057,7 +1174,7 @@ class LicenseManager {
 }
 ````
 
-#### 22.4 RSA Key Pair Generation (Setup)
+#### 17.4 RSA Key Pair Generation (Setup)
 ````bash
 # Generate private key (keep this secure on your computer!)
 openssl genrsa -out pdns_private.key 2048
@@ -1069,7 +1186,7 @@ openssl rsa -in pdns_private.key -pubout -out pdns_public.key
 cat pdns_public.key
 ````
 
-#### 22.5 Your License Sales Workflow
+#### 17.5 Your License Sales Workflow
 1. **Customer purchases** via Stripe/PayPal/etc.
 2. **You run**: `php generate_license.php customer@email.com commercial`
 3. **System generates**: `PDNS-COMMERCIAL-eyJlbWFpbCI6ImN1c3RvbWVyQGVtYWlsLmNvbSIsInR5cGUiOiJjb21tZXJjaWFsIiwiZG9tYWlucyI6MCwiaXNzdWVkIjoxNzMzMTAwMDAwLCJleHBpcmVzIjpudWxsfQ-a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6`
@@ -1080,28 +1197,30 @@ cat pdns_public.key
 
 ## Testing Strategy
 
-### 23. Testing Approach
+### 18. Testing Strategy
 
-#### 23.1 Unit Testing
+#### 18.1 Testing Approach
+
+#### 18.1 Unit Testing
 - PHP functions validation
 - Database operations
 - Authentication logic
 - Input validation
 
-#### 23.2 Integration Testing
+#### 18.2 Integration Testing
 - Database connectivity
 - DNS record validation
 - DNSSEC operations
 - Multi-tenant isolation
 - Dynamic DNS API functionality
 
-#### 23.3 Security Testing
+#### 18.3 Security Testing
 - SQL injection attempts
 - XSS vulnerability tests
 - Authentication bypass tests
 - Authorization boundary tests
 
-#### 23.4 User Acceptance Testing
+#### 18.4 User Acceptance Testing
 - Admin user workflows
 - Tenant user workflows
 - Mobile responsiveness
@@ -1111,7 +1230,9 @@ cat pdns_public.key
 
 ## Deployment Considerations
 
-### 19. Production Requirements
+### 19. Deployment Considerations
+
+#### 19.1 Production Requirements
 
 #### 19.1 Server Requirements
 - PHP 8.x with PDO MySQL extension
@@ -1134,7 +1255,9 @@ cat pdns_public.key
 
 ## Additional Questions for Clarification
 
-### 20. Follow-up Questions
+### 20. Additional Questions for Clarification
+
+#### 20.1 Follow-up Questions
 
 This comprehensive plan incorporates all requirements and clarifications:
 

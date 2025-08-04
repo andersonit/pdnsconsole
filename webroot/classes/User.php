@@ -9,11 +9,13 @@ class User {
     private $db;
     private $encryption;
     private $settings;
+    private $auditLog;
     
     public function __construct() {
         $this->db = Database::getInstance();
         $this->encryption = new Encryption();
         $this->settings = new Settings();
+        $this->auditLog = new AuditLog();
     }
     
     /**
@@ -29,6 +31,8 @@ class User {
         );
         
         if (!$user) {
+            // Log failed login attempt (username not found)
+            $this->auditLog->logUserLoginFailed($username);
             return ['success' => false, 'error' => 'Invalid credentials'];
         }
         
@@ -36,6 +40,7 @@ class User {
         if (!$this->encryption->verifyPassword($password, $user['password_hash'])) {
             // Log failed login attempt
             $this->logFailedLogin($user['id']);
+            $this->auditLog->logUserLoginFailed($username, ['user_id' => $user['id']]);
             return ['success' => false, 'error' => 'Invalid credentials'];
         }
         
@@ -46,6 +51,9 @@ class User {
         
         // Clear failed login attempts on successful login
         $this->clearFailedLogins($user['id']);
+        
+        // Log successful login
+        $this->auditLog->logUserLogin($user['id']);
         
         return [
             'success' => true,
@@ -384,6 +392,115 @@ class User {
             "DELETE FROM audit_log WHERE user_id = ? AND action = 'failed_login'",
             [$userId]
         );
+    }
+    
+    /**
+     * Get user by ID (alias for getById for consistency)
+     */
+    public function getUserById($userId) {
+        return $this->getById($userId);
+    }
+    
+    /**
+     * Check if username exists (excluding specific user ID)
+     */
+    public function usernameExists($username, $excludeUserId = null) {
+        $sql = "SELECT COUNT(*) as count FROM admin_users WHERE username = ?";
+        $params = [$username];
+        
+        if ($excludeUserId) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeUserId;
+        }
+        
+        $result = $this->db->fetch($sql, $params);
+        return $result['count'] > 0;
+    }
+    
+    /**
+     * Check if email exists (excluding specific user ID)
+     */
+    public function emailExists($email, $excludeUserId = null) {
+        $sql = "SELECT COUNT(*) as count FROM admin_users WHERE email = ?";
+        $params = [$email];
+        
+        if ($excludeUserId) {
+            $sql .= " AND id != ?";
+            $params[] = $excludeUserId;
+        }
+        
+        $result = $this->db->fetch($sql, $params);
+        return $result['count'] > 0;
+    }
+    
+    /**
+     * Update user profile (username and email)
+     */
+    public function updateProfile($userId, $username, $email) {
+        try {
+            $sql = "UPDATE admin_users SET username = ?, email = ? WHERE id = ?";
+            $this->db->execute($sql, [$username, $email, $userId]);
+            
+            // Log the update
+            $this->auditLog->logUserUpdated($userId, $userId, 
+                ['username' => $username, 'email' => $email],
+                ['username' => $username, 'email' => $email]
+            );
+            
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Verify user password
+     */
+    public function verifyPassword($userId, $password) {
+        $user = $this->db->fetch(
+            "SELECT password_hash FROM admin_users WHERE id = ?",
+            [$userId]
+        );
+        
+        if (!$user) {
+            return false;
+        }
+        
+        return password_verify($password, $user['password_hash']);
+    }
+    
+    /**
+     * Change password (without requiring current password - for profile page)
+     */
+    public function changePasswordDirect($userId, $newPassword) {
+        try {
+            $hashedPassword = password_hash($newPassword, PASSWORD_DEFAULT);
+            
+            $sql = "UPDATE admin_users SET password_hash = ? WHERE id = ?";
+            $this->db->execute($sql, [$hashedPassword, $userId]);
+            
+            // Log the password change
+            $this->auditLog->logPasswordChanged($userId, $userId);
+            
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Update user's last login timestamp
+     */
+    public function updateLastLogin($userId) {
+        try {
+            $this->db->execute(
+                "UPDATE admin_users SET last_login = CURRENT_TIMESTAMP WHERE id = ?",
+                [$userId]
+            );
+            return true;
+        } catch (Exception $e) {
+            return false;
+        }
     }
 }
 
