@@ -163,7 +163,7 @@ define('PDNS_ENV', 'production');
 # Test database connection
 php -r "
 try {
-    \$pdo = new PDO('mysql:host=127.0.0.1;dbname=pdnsconsole;charset=utf8mb4', 'pdnscadmin', 'Ch1m3r@76!');
+    \$pdo = new PDO('mysql:host=127.0.0.1;dbname=pdnsconsole;charset=utf8mb4', 'pdnscadmin', 'password');
     echo 'Database connection successful!\n';
 } catch (Exception \$e) {
     echo 'Database error: ' . \$e->getMessage() . '\n';
