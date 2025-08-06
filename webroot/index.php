@@ -174,6 +174,7 @@ $pageRoutes = [
     'dashboard' => 'console/dashboard.php',
     'domains' => 'console/domains/list.php',
     'domain_add' => 'console/domains/add.php',
+    'domain_bulk_add' => 'console/domains/add_bulk.php',
     'domain_edit' => 'console/domains/edit.php',
     'domain_delete' => 'console/domains/delete.php',
     'records' => 'console/records/list.php',

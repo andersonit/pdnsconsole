@@ -46,7 +46,8 @@ class Records {
             'name' => 'NS Record (Name Server)',
             'pattern' => '/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => 'ns1.example.com.',
-            'description' => 'Delegates a subdomain to other name servers'
+            'description' => 'Delegates a subdomain to other name servers',
+            'readonly' => true
         ],
         'PTR' => [
             'name' => 'PTR Record (Reverse DNS)',
@@ -59,6 +60,13 @@ class Records {
             'pattern' => '/^[0-9]+ [0-9]+ [0-9]+ [a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => '0 5 443 server.example.com.',
             'description' => 'Defines services available in the domain'
+        ],
+        'SOA' => [
+            'name' => 'SOA Record (Start of Authority)',
+            'pattern' => '/^[^\s]+ [^\s]+ \d+ \d+ \d+ \d+ \d+$/',
+            'example' => 'ns1.example.com. admin.example.com. 2023010101 3600 1800 604800 300',
+            'description' => 'Defines authoritative information about a DNS zone',
+            'readonly' => true
         ]
     ];
     
@@ -130,16 +138,21 @@ class Records {
     /**
      * Get records for a domain with tenant access check
      */
-    public function getRecordsForDomain($domainId, $tenantId = null, $type = '', $search = '', $limit = 50, $offset = 0) {
+    public function getRecordsForDomain($domainId, $tenantId = null, $type = '', $search = '', $limit = 50, $offset = 0, $sortBy = 'name', $sortOrder = 'ASC') {
         // Verify domain access
         $domain = $this->domain->getDomainById($domainId, $tenantId);
         if (!$domain) {
             throw new Exception('Domain not found or access denied');
         }
         
+        // Validate sort parameters
+        $allowedSorts = ['name', 'type', 'content', 'ttl', 'prio'];
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'name';
+        $sortOrder = in_array(strtoupper($sortOrder), ['ASC', 'DESC']) ? strtoupper($sortOrder) : 'ASC';
+        
         $sql = "SELECT r.id, r.name, r.type, r.content, r.ttl, r.prio, r.auth
                 FROM records r
-                WHERE r.domain_id = ? AND r.type != 'SOA'";
+                WHERE r.domain_id = ?";
         
         $params = [$domainId];
         
@@ -154,8 +167,20 @@ class Records {
             $params[] = '%' . $search . '%';
         }
         
-        $sql .= " ORDER BY r.type ASC, r.name ASC, r.prio ASC
-                  LIMIT ? OFFSET ?";
+        $sql .= " ORDER BY r.{$sortBy} {$sortOrder}";
+        
+        // Add secondary sorts for consistency
+        if ($sortBy !== 'type') {
+            $sql .= ", r.type ASC";
+        }
+        if ($sortBy !== 'name') {
+            $sql .= ", r.name ASC";
+        }
+        if ($sortBy !== 'prio') {
+            $sql .= ", r.prio ASC";
+        }
+        
+        $sql .= " LIMIT ? OFFSET ?";
         
         $params[] = $limit;
         $params[] = $offset;
@@ -175,7 +200,7 @@ class Records {
         
         $sql = "SELECT COUNT(*) as count
                 FROM records r
-                WHERE r.domain_id = ? AND r.type != 'SOA'";
+                WHERE r.domain_id = ?";
         
         $params = [$domainId];
         

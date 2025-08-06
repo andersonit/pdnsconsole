@@ -127,11 +127,24 @@ CREATE TABLE tenants (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     contact_email VARCHAR(255),
+    soa_contact_override VARCHAR(255) NULL COMMENT 'Optional SOA contact override for this tenant (format: admin.example.com)',
     max_domains INT DEFAULT 0, -- 0 = unlimited
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_name (name)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
+
+-- Nameservers management table
+CREATE TABLE nameservers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hostname VARCHAR(255) NOT NULL,
+    priority INT NOT NULL DEFAULT 1,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_hostname (hostname),
+    INDEX idx_priority_active (priority, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- User-tenant relationships
 CREATE TABLE user_tenants (
@@ -309,8 +322,6 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('theme_name', 'default', 'Bootstrap theme name (default or bootswatch theme)', 'branding'),
 
 -- DNS settings
-('primary_nameserver', 'dns1.atmyip.com', 'Primary nameserver for new domains', 'dns'),
-('secondary_nameserver', 'dns2.atmyip.com', 'Secondary nameserver for new domains', 'dns'),
 ('soa_contact', 'admin.atmyip.com', 'SOA contact email for new domains', 'dns'),
 ('default_ttl', '3600', 'Default TTL for new records', 'dns'),
 ('soa_refresh', '10800', 'SOA refresh interval (seconds)', 'dns'),
@@ -338,14 +349,21 @@ INSERT INTO custom_record_types (type_name, description, validation_pattern, is_
 ('CAA', 'Certification Authority Authorization', '^[0-9]+ [a-zA-Z]+ "[^"]*"$', true),
 ('TLSA', 'Transport Layer Security Authentication', '^[0-3] [0-1] [0-2] [0-9a-fA-F]+$', true);
 
+-- Initial nameservers data
+INSERT INTO nameservers (hostname, priority, is_active) VALUES
+('dns1.atmyip.com', 1, 1),
+('dns2.atmyip.com', 2, 1);
+
 -- =============================================================================
 -- SETUP COMPLETE
 -- =============================================================================
 -- This schema provides:
 -- 1. Full PowerDNS MySQL backend compatibility
--- 2. Multi-tenant administration capabilities
+-- 2. Multi-tenant administration capabilities with tenant-specific SOA overrides
 -- 3. Advanced security features (2FA, encryption, audit logging)
 -- 4. Commercial licensing system
 -- 5. Dynamic DNS API support
 -- 6. White-label branding system
+-- 7. Centralized nameserver management with automatic NS record updates
+-- 8. Tenant-specific SOA contact override functionality
 -- =============================================================================

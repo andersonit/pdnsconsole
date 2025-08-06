@@ -38,4 +38,5 @@ require_once __DIR__ . '/../classes/MFA.php';
 require_once __DIR__ . '/../classes/User.php';
 require_once __DIR__ . '/../classes/Domain.php';
 require_once __DIR__ . '/../classes/Records.php';
+require_once __DIR__ . '/../classes/Nameserver.php';
 ?>

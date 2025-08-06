@@ -15,7 +15,7 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 $userTenants = [];
 if (!$isSuperAdmin) {
     $tenantData = $user->getUserTenants($currentUser['id']);
-    $userTenants = array_column($tenantData, 'tenant_id');
+    $userTenants = array_column($tenantData, 'id');
 }
 
 $error = '';

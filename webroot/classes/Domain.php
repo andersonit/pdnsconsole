@@ -19,7 +19,12 @@ class Domain {
     /**
      * Get domains for a tenant with optional filtering
      */
-    public function getDomainsForTenant($tenantId, $search = '', $limit = 25, $offset = 0) {
+    public function getDomainsForTenant($tenantId, $search = '', $zoneTypeFilter = '', $limit = 25, $offset = 0, $sortBy = 'name', $sortOrder = 'ASC') {
+        // Validate sort parameters
+        $allowedSorts = ['name', 'zone_type', 'record_count', 'domain_created'];
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'name';
+        $sortOrder = in_array(strtoupper($sortOrder), ['ASC', 'DESC']) ? strtoupper($sortOrder) : 'ASC';
+        
         $sql = "SELECT d.id, d.name, d.type, d.zone_type, d.account, 
                        COUNT(r.id) as record_count,
                        dt.created_at as domain_created,
@@ -36,9 +41,20 @@ class Domain {
             $params[] = '%' . $search . '%';
         }
         
+        if (!empty($zoneTypeFilter)) {
+            $sql .= " AND d.zone_type = ?";
+            $params[] = $zoneTypeFilter;
+        }
+        
         $sql .= " GROUP BY d.id, d.name, d.type, d.zone_type, d.account, dt.created_at
-                  ORDER BY d.name ASC
-                  LIMIT ? OFFSET ?";
+                  ORDER BY {$sortBy} {$sortOrder}";
+        
+        // Add secondary sorts for consistency
+        if ($sortBy !== 'name') {
+            $sql .= ", d.name ASC";
+        }
+        
+        $sql .= " LIMIT ? OFFSET ?";
         
         $params[] = $limit;
         $params[] = $offset;
@@ -49,7 +65,7 @@ class Domain {
     /**
      * Get total domain count for a tenant
      */
-    public function getDomainCountForTenant($tenantId, $search = '') {
+    public function getDomainCountForTenant($tenantId, $search = '', $zoneTypeFilter = '') {
         $sql = "SELECT COUNT(DISTINCT d.id) as count
                 FROM domains d
                 LEFT JOIN domain_tenants dt ON d.id = dt.domain_id
@@ -62,6 +78,11 @@ class Domain {
             $params[] = '%' . $search . '%';
         }
         
+        if (!empty($zoneTypeFilter)) {
+            $sql .= " AND d.zone_type = ?";
+            $params[] = $zoneTypeFilter;
+        }
+        
         $result = $this->db->fetch($sql, $params);
         return $result['count'] ?? 0;
     }
@@ -69,7 +90,12 @@ class Domain {
     /**
      * Get all domains (super admin only)
      */
-    public function getAllDomains($search = '', $limit = 25, $offset = 0) {
+    public function getAllDomains($search = '', $zoneTypeFilter = '', $tenantFilter = '', $limit = 25, $offset = 0, $sortBy = 'name', $sortOrder = 'ASC') {
+        // Validate sort parameters
+        $allowedSorts = ['name', 'zone_type', 'tenant_name', 'record_count', 'domain_created'];
+        $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'name';
+        $sortOrder = in_array(strtoupper($sortOrder), ['ASC', 'DESC']) ? strtoupper($sortOrder) : 'ASC';
+        
         $sql = "SELECT d.id, d.name, d.type, d.account, d.zone_type,
                        COUNT(r.id) as record_count,
                        t.name as tenant_name,
@@ -81,20 +107,76 @@ class Domain {
                 LEFT JOIN records r ON d.id = r.domain_id";
         
         $params = [];
+        $whereConditions = [];
         
         if (!empty($search)) {
-            $sql .= " WHERE d.name LIKE ?";
+            $whereConditions[] = "d.name LIKE ?";
             $params[] = '%' . $search . '%';
         }
         
+        if (!empty($zoneTypeFilter)) {
+            $whereConditions[] = "d.zone_type = ?";
+            $params[] = $zoneTypeFilter;
+        }
+        
+        if (!empty($tenantFilter)) {
+            $whereConditions[] = "dt.tenant_id = ?";
+            $params[] = $tenantFilter;
+        }
+        
+        if (!empty($whereConditions)) {
+            $sql .= " WHERE " . implode(" AND ", $whereConditions);
+        }
+        
         $sql .= " GROUP BY d.id, d.name, d.type, d.account, d.zone_type, t.name, dt.created_at
-                  ORDER BY d.name ASC
-                  LIMIT ? OFFSET ?";
+                  ORDER BY {$sortBy} {$sortOrder}";
+        
+        // Add secondary sorts for consistency
+        if ($sortBy !== 'name') {
+            $sql .= ", d.name ASC";
+        }
+        
+        $sql .= " LIMIT ? OFFSET ?";
         
         $params[] = $limit;
         $params[] = $offset;
         
         return $this->db->fetchAll($sql, $params);
+    }
+    
+    /**
+     * Get total domain count for all domains (super admin only)
+     */
+    public function getAllDomainsCount($search = '', $zoneTypeFilter = '', $tenantFilter = '') {
+        $sql = "SELECT COUNT(DISTINCT d.id) as count
+                FROM domains d
+                LEFT JOIN domain_tenants dt ON d.id = dt.domain_id
+                LEFT JOIN tenants t ON dt.tenant_id = t.id";
+        
+        $params = [];
+        $whereConditions = [];
+        
+        if (!empty($search)) {
+            $whereConditions[] = "d.name LIKE ?";
+            $params[] = '%' . $search . '%';
+        }
+        
+        if (!empty($zoneTypeFilter)) {
+            $whereConditions[] = "d.zone_type = ?";
+            $params[] = $zoneTypeFilter;
+        }
+        
+        if (!empty($tenantFilter)) {
+            $whereConditions[] = "dt.tenant_id = ?";
+            $params[] = $tenantFilter;
+        }
+        
+        if (!empty($whereConditions)) {
+            $sql .= " WHERE " . implode(" AND ", $whereConditions);
+        }
+        
+        $result = $this->db->fetch($sql, $params);
+        return $result['count'] ?? 0;
     }
     
     /**
@@ -172,7 +254,7 @@ class Domain {
             );
             
             // Create SOA record
-            $this->createSOARecord($domainId, $name);
+            $this->createSOARecord($domainId, $name, $tenantId);
             
             // Create NS records (both forward and reverse zones need NS records)
             $this->createNSRecords($domainId, $name);
@@ -300,9 +382,30 @@ class Domain {
     /**
      * Create SOA record for new domain
      */
-    private function createSOARecord($domainId, $domainName) {
-        $primaryNS = $this->settings->get('primary_nameserver', 'dns1.atmyip.com');
+    private function createSOARecord($domainId, $domainName, $tenantId = null) {
+        // Get primary nameserver from nameserver table
+        $nameserver = new Nameserver();
+        $nameservers = $nameserver->getActiveNameservers();
+        
+        if (empty($nameservers)) {
+            throw new Exception('No active nameservers configured.');
+        }
+        
+        $primaryNS = $nameservers[0]['hostname'];
         $soaContact = $this->settings->get('soa_contact', 'admin.atmyip.com');
+        
+        // Check for tenant-specific SOA contact override
+        if ($tenantId) {
+            $tenantSOA = $this->db->fetch(
+                "SELECT soa_contact_override FROM tenants WHERE id = ? AND soa_contact_override IS NOT NULL AND soa_contact_override != ''",
+                [$tenantId]
+            );
+            
+            if ($tenantSOA && !empty($tenantSOA['soa_contact_override'])) {
+                $soaContact = $tenantSOA['soa_contact_override'];
+            }
+        }
+        
         $soaRefresh = $this->settings->get('soa_refresh', '10800');
         $soaRetry = $this->settings->get('soa_retry', '3600');
         $soaExpire = $this->settings->get('soa_expire', '604800');
@@ -331,20 +434,18 @@ class Domain {
      * Create NS records for new domain
      */
     private function createNSRecords($domainId, $domainName) {
-        $primaryNS = $this->settings->get('primary_nameserver', 'dns1.atmyip.com');
-        $secondaryNS = $this->settings->get('secondary_nameserver', 'dns2.atmyip.com');
+        $nameserver = new Nameserver();
+        $nameservers = $nameserver->getActiveNameservers();
         
-        // Primary NS
-        $this->db->execute(
-            "INSERT INTO records (domain_id, name, type, content, ttl, auth) VALUES (?, ?, 'NS', ?, 3600, 1)",
-            [$domainId, $domainName, $primaryNS]
-        );
+        if (empty($nameservers)) {
+            throw new Exception('No active nameservers configured.');
+        }
         
-        // Secondary NS
-        if ($secondaryNS && $secondaryNS !== $primaryNS) {
+        // Create NS records for all active nameservers
+        foreach ($nameservers as $ns) {
             $this->db->execute(
                 "INSERT INTO records (domain_id, name, type, content, ttl, auth) VALUES (?, ?, 'NS', ?, 3600, 1)",
-                [$domainId, $domainName, $secondaryNS]
+                [$domainId, $domainName, $ns['hostname']]
             );
         }
     }

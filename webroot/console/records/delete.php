@@ -25,7 +25,7 @@ $userTenants = [];
 $tenantId = null;
 if (!$isSuperAdmin) {
     $tenantData = $user->getUserTenants($currentUser['id']);
-    $userTenants = array_column($tenantData, 'tenant_id');
+    $userTenants = array_column($tenantData, 'id');
     if (empty($userTenants)) {
         $_SESSION['error'] = 'No tenants assigned to your account. Please contact an administrator.';
         header("Location: ?page=records&domain_id=$domainId");

@@ -132,8 +132,8 @@ $pageTitle = 'Dashboard';
                                     </a>
                                 </div>
                                 <div class="col-6">
-                                    <a href="?page=domain_import" class="btn btn-primary btn-sm w-100">
-                                        <i class="bi bi-upload me-1"></i> Import
+                                    <a href="?page=domain_bulk_add" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-layers me-1"></i> Bulk Add
                                     </a>
                                 </div>
                             </div>

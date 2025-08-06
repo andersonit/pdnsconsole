@@ -62,11 +62,24 @@ CREATE TABLE IF NOT EXISTS tenants (
     id INT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     contact_email VARCHAR(255),
+    soa_contact_override VARCHAR(255) NULL,
     max_domains INT DEFAULT 0, -- 0 = unlimited
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_name (name)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
+
+-- Nameservers management table
+CREATE TABLE IF NOT EXISTS nameservers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    hostname VARCHAR(255) NOT NULL,
+    priority INT NOT NULL DEFAULT 1,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_hostname (hostname),
+    INDEX idx_priority_active (priority, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- User-tenant relationships
 CREATE TABLE IF NOT EXISTS user_tenants (
@@ -231,7 +244,35 @@ CREATE TABLE IF NOT EXISTS license_usage (
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
 -- =============================================================================
--- PART 4: Populate Initial Configuration Data
+-- PART 4: Handle Existing Installations - Migrate Old Settings
+-- =============================================================================
+
+-- Add soa_contact_override column to existing tenants table if it doesn't exist
+SET @soa_column_exists = 0;
+SELECT COUNT(*) INTO @soa_column_exists 
+FROM INFORMATION_SCHEMA.COLUMNS 
+WHERE TABLE_SCHEMA = DATABASE() 
+  AND TABLE_NAME = 'tenants' 
+  AND COLUMN_NAME = 'soa_contact_override';
+
+SET @sql = IF(@soa_column_exists = 0, 
+    'ALTER TABLE tenants ADD COLUMN soa_contact_override VARCHAR(255) NULL COMMENT ''Optional SOA contact override for this tenant (format: admin.example.com)'' AFTER contact_email', 
+    'SELECT "soa_contact_override column already exists" as status');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- Migrate existing nameserver settings from global_settings to nameservers table
+INSERT IGNORE INTO nameservers (hostname, priority, is_active)
+SELECT setting_value, 1, 1 FROM global_settings WHERE setting_key = 'primary_nameserver' AND setting_value IS NOT NULL AND setting_value != ''
+UNION ALL
+SELECT setting_value, 2, 1 FROM global_settings WHERE setting_key = 'secondary_nameserver' AND setting_value IS NOT NULL AND setting_value != '';
+
+-- Remove old nameserver settings from global_settings
+DELETE FROM global_settings WHERE setting_key IN ('primary_nameserver', 'secondary_nameserver', 'additional_nameservers');
+
+-- =============================================================================
+-- PART 5: Populate Initial Configuration Data
 -- =============================================================================
 
 -- Insert global settings
@@ -244,8 +285,6 @@ INSERT IGNORE INTO global_settings (setting_key, setting_value, description, cat
 ('theme_name', 'default', 'Bootstrap theme name (default or bootswatch theme)', 'branding'),
 
 -- DNS settings
-('primary_nameserver', 'ns1.yourdomain.com', 'Primary nameserver for new domains', 'dns'),
-('secondary_nameserver', 'ns2.yourdomain.com', 'Secondary nameserver for new domains', 'dns'),
 ('soa_contact', 'admin.yourdomain.com', 'SOA contact email for new domains', 'dns'),
 ('default_ttl', '3600', 'Default TTL for new records', 'dns'),
 ('soa_refresh', '10800', 'SOA refresh interval (seconds)', 'dns'),
@@ -273,8 +312,13 @@ INSERT IGNORE INTO custom_record_types (type_name, description, validation_patte
 ('CAA', 'Certification Authority Authorization', '^[0-9]+ [a-zA-Z]+ "[^"]*"$', true),
 ('TLSA', 'Transport Layer Security Authentication', '^[0-3] [0-1] [0-2] [0-9a-fA-F]+$', true);
 
+-- Insert initial nameservers data
+INSERT IGNORE INTO nameservers (hostname, priority, is_active) VALUES
+('ns1.yourdomain.com', 1, 1),
+('ns2.yourdomain.com', 2, 1);
+
 -- =============================================================================
--- PART 5: Create Default Admin User (optional - uncomment to use)
+-- PART 6: Create Default Admin User (optional - uncomment to use)
 -- =============================================================================
 -- IMPORTANT: Uncomment these lines and change the password after running the script!
 
@@ -294,10 +338,13 @@ COMMIT;
 -- POST-MIGRATION STEPS
 -- =============================================================================
 -- 1. Create your first admin user using cli/create_admin.php
--- 2. Update DNS settings in global_settings table with your nameservers
+-- 2. Update DNS settings via the web interface Settings page:
+--    - Update nameservers in the nameservers table (replaces old global_settings)
+--    - Configure SOA contact and timing settings
 -- 3. Create tenants and assign your existing domains to them
 -- 4. Test the PDNS Console web interface
 -- 5. Configure your PowerDNS to read from this database
+-- 6. Verify nameserver changes propagate to all domains automatically
 
 -- =============================================================================
 -- VERIFICATION QUERIES (Run these manually after migration)
@@ -312,6 +359,12 @@ COMMIT;
 -- Check global settings were populated:
 -- SELECT COUNT(*) FROM global_settings;
 
+-- Verify nameservers table was created and populated:
+-- SELECT * FROM nameservers ORDER BY priority;
+
+-- Check tenants table has soa_contact_override column:
+-- DESCRIBE tenants;
+
 -- Verify your existing data is intact:
 -- SELECT COUNT(*) FROM domains;
 -- SELECT COUNT(*) FROM records;
@@ -322,5 +375,8 @@ COMMIT;
 -- 2. All existing PowerDNS data is preserved
 -- 3. Adds zone_type column to domains table for forward/reverse zone support
 -- 4. Creates all administrative tables needed for PDNS Console
--- 5. Populates default configuration - update DNS settings to match your setup
+-- 5. Migrates old nameserver settings from global_settings to nameservers table
+-- 6. Adds soa_contact_override column to tenants table for tenant-specific SOA contacts
+-- 7. Populates default configuration - update nameservers via web interface
+-- 8. Automatic nameserver changes will propagate to all domains
 -- =============================================================================

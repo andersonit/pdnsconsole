@@ -43,7 +43,7 @@ $userTenants = [];
 $tenantId = null;
 if (!$isSuperAdmin) {
     $tenantData = $user->getUserTenants($currentUser['id']);
-    $userTenants = array_column($tenantData, 'tenant_id');
+    $userTenants = array_column($tenantData, 'id');
     if (empty($userTenants)) {
         $error = 'No tenants assigned to your account. Please contact an administrator.';
     } else {
@@ -64,10 +64,15 @@ try {
 
 // Initialize pagination and filters
 $page = max(1, intval($_GET['p'] ?? 1));
-$limit = 25;
+$limit = intval($_GET['limit'] ?? 25);
+$limit = in_array($limit, [10, 25, 50, 100]) ? $limit : 25; // Validate limit
 $offset = ($page - 1) * $limit;
 $search = trim($_GET['search'] ?? '');
 $typeFilter = trim($_GET['type'] ?? '');
+// Default sorting: alphabetically by name
+$sortBy = trim($_GET['sort'] ?? 'name');
+$sortOrder = strtoupper(trim($_GET['order'] ?? 'ASC'));
+$sortOrder = in_array($sortOrder, ['ASC', 'DESC']) ? $sortOrder : 'ASC';
 
 // Get records and stats
 $recordsList = [];
@@ -87,7 +92,9 @@ if ($domainInfo) {
             $typeFilter, 
             $search, 
             $limit, 
-            $offset
+            $offset,
+            $sortBy,
+            $sortOrder
         );
         
         $totalRecords = $records->getRecordCountForDomain($domainId, $tenantId, $typeFilter, $search);
@@ -100,6 +107,21 @@ if ($domainInfo) {
 
 // Calculate pagination
 $totalPages = ceil($totalRecords / $limit);
+
+// Helper function for pagination URLs
+function buildPaginationUrl($domainId, $pageNum, $search, $typeFilter, $sortBy, $sortOrder, $limit) {
+    $params = [
+        'page' => 'records',
+        'domain_id' => $domainId,
+        'p' => $pageNum,
+        'search' => $search,
+        'type' => $typeFilter,
+        'sort' => $sortBy,
+        'order' => $sortOrder,
+        'limit' => $limit
+    ];
+    return '?' . http_build_query(array_filter($params));
+}
 
 // Get zone type from domain info
 $zoneType = $domainInfo['zone_type'] ?? 'forward';
@@ -132,6 +154,10 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                     <span class="badge bg-primary ms-2"><?php echo htmlspecialchars($domainInfo['tenant_name']); ?></span>
                 <?php endif; ?>
             </p>
+            <small class="text-muted">
+                <i class="bi bi-info-circle me-1"></i>
+                System records (SOA, NS) are highlighted and protected from modification
+            </small>
         <?php endif; ?>
     </div>
 
@@ -219,19 +245,25 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                         </select>
                     </div>
                     
+                    <div class="col-md-2">
+                        <label for="limit" class="form-label">Per Page</label>
+                        <select class="form-select" id="limit" name="limit">
+                            <option value="10" <?php echo $limit === 10 ? 'selected' : ''; ?>>10</option>
+                            <option value="25" <?php echo $limit === 25 ? 'selected' : ''; ?>>25</option>
+                            <option value="50" <?php echo $limit === 50 ? 'selected' : ''; ?>>50</option>
+                            <option value="100" <?php echo $limit === 100 ? 'selected' : ''; ?>>100</option>
+                        </select>
+                    </div>
+                    
                     <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary me-2">
                             <i class="bi bi-search me-1"></i>
                             Search
                         </button>
-                        <?php if (!empty($search) || !empty($typeFilter)): ?>
-                            <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-secondary">
-                                Clear
-                            </a>
-                        <?php endif; ?>
-                    </div>
-                    
-                    <div class="col-md-2 d-flex align-items-end justify-content-end">
+                        <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-secondary me-2">
+                            <i class="bi bi-arrow-clockwise me-1"></i>
+                            Reset
+                        </a>
                         <div class="btn-group">
                             <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=add" 
                                class="btn btn-success">
@@ -300,9 +332,33 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Name</th>
-                                <th>Type</th>
-                                <th>Content</th>
+                                <th>
+                                    <a href="?page=records&domain_id=<?php echo $domainId; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>&sort=name&order=<?php echo $sortBy === 'name' && $sortOrder === 'ASC' ? 'DESC' : 'ASC'; ?>&limit=<?php echo $limit; ?>" 
+                                       class="text-decoration-none text-dark">
+                                        Name 
+                                        <?php if ($sortBy === 'name'): ?>
+                                            <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?page=records&domain_id=<?php echo $domainId; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>&sort=type&order=<?php echo $sortBy === 'type' && $sortOrder === 'ASC' ? 'DESC' : 'ASC'; ?>&limit=<?php echo $limit; ?>" 
+                                       class="text-decoration-none text-dark">
+                                        Type 
+                                        <?php if ($sortBy === 'type'): ?>
+                                            <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </th>
+                                <th>
+                                    <a href="?page=records&domain_id=<?php echo $domainId; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>&sort=content&order=<?php echo $sortBy === 'content' && $sortOrder === 'ASC' ? 'DESC' : 'ASC'; ?>&limit=<?php echo $limit; ?>" 
+                                       class="text-decoration-none text-dark">
+                                        Content 
+                                        <?php if ($sortBy === 'content'): ?>
+                                            <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
+                                        <?php endif; ?>
+                                    </a>
+                                </th>
                                 <th>TTL</th>
                                 <th>Priority</th>
                                 <th>Actions</th>
@@ -310,14 +366,20 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                         </thead>
                         <tbody>
                             <?php foreach ($recordsList as $record): ?>
-                                <tr>
+                                <?php $isSystemRecord = in_array($record['type'], ['SOA', 'NS']); ?>
+                                <tr <?php echo $isSystemRecord ? 'class="table-warning"' : ''; ?>>
                                     <td>
                                         <div class="fw-medium text-break">
                                             <?php echo htmlspecialchars($record['name']); ?>
+                                            <?php if ($isSystemRecord): ?>
+                                                <small class="text-muted d-block">
+                                                    <i class="bi bi-lock me-1"></i>System Record
+                                                </small>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="badge bg-secondary">
+                                        <span class="badge <?php echo $isSystemRecord ? 'bg-warning text-dark' : 'bg-secondary'; ?>">
                                             <?php echo htmlspecialchars($record['type']); ?>
                                         </span>
                                     </td>
@@ -344,15 +406,21 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=edit&id=<?php echo $record['id']; ?>" 
-                                               class="btn btn-outline-primary" title="Edit Record">
-                                                <i class="bi bi-pencil"></i>
-                                            </a>
-                                            <button type="button" class="btn btn-outline-danger" 
-                                                    onclick="confirmDelete(<?php echo $record['id']; ?>, '<?php echo htmlspecialchars($record['name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($record['type'], ENT_QUOTES); ?>')"
-                                                    title="Delete Record">
-                                                <i class="bi bi-trash"></i>
-                                            </button>
+                                            <?php if ($isSystemRecord): ?>
+                                                <span class="btn btn-outline-secondary disabled" title="System records cannot be modified">
+                                                    <i class="bi bi-lock"></i>
+                                                </span>
+                                            <?php else: ?>
+                                                <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=edit&id=<?php echo $record['id']; ?>" 
+                                                   class="btn btn-outline-primary" title="Edit Record">
+                                                    <i class="bi bi-pencil"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-outline-danger" 
+                                                        onclick="confirmDelete(<?php echo $record['id']; ?>, '<?php echo htmlspecialchars($record['name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($record['type'], ENT_QUOTES); ?>')"
+                                                        title="Delete Record">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            <?php endif; ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -368,7 +436,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                             <ul class="pagination justify-content-center mb-0">
                                 <!-- Previous button -->
                                 <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="?page=records&domain_id=<?php echo $domainId; ?>&p=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>">
+                                    <a class="page-link" href="<?php echo buildPaginationUrl($domainId, $page - 1, $search, $typeFilter, $sortBy, $sortOrder, $limit); ?>">
                                         <i class="bi bi-chevron-left"></i>
                                     </a>
                                 </li>
@@ -379,7 +447,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                 
                                 if ($startPage > 1): ?>
                                     <li class="page-item">
-                                        <a class="page-link" href="?page=records&domain_id=<?php echo $domainId; ?>&p=1&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>">1</a>
+                                        <a class="page-link" href="<?php echo buildPaginationUrl($domainId, 1, $search, $typeFilter, $sortBy, $sortOrder, $limit); ?>">1</a>
                                     </li>
                                     <?php if ($startPage > 2): ?>
                                         <li class="page-item disabled"><span class="page-link">...</span></li>
@@ -388,7 +456,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                 
                                 for ($i = $startPage; $i <= $endPage; $i++): ?>
                                     <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
-                                        <a class="page-link" href="?page=records&domain_id=<?php echo $domainId; ?>&p=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>">
+                                        <a class="page-link" href="<?php echo buildPaginationUrl($domainId, $i, $search, $typeFilter, $sortBy, $sortOrder, $limit); ?>">
                                             <?php echo $i; ?>
                                         </a>
                                     </li>
@@ -399,13 +467,13 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                         <li class="page-item disabled"><span class="page-link">...</span></li>
                                     <?php endif; ?>
                                     <li class="page-item">
-                                        <a class="page-link" href="?page=records&domain_id=<?php echo $domainId; ?>&p=<?php echo $totalPages; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>"><?php echo $totalPages; ?></a>
+                                        <a class="page-link" href="<?php echo buildPaginationUrl($domainId, $totalPages, $search, $typeFilter, $sortBy, $sortOrder, $limit); ?>"><?php echo $totalPages; ?></a>
                                     </li>
                                 <?php endif; ?>
                                 
                                 <!-- Next button -->
                                 <li class="page-item <?php echo $page >= $totalPages ? 'disabled' : ''; ?>">
-                                    <a class="page-link" href="?page=records&domain_id=<?php echo $domainId; ?>&p=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&type=<?php echo urlencode($typeFilter); ?>">
+                                    <a class="page-link" href="<?php echo buildPaginationUrl($domainId, $page + 1, $search, $typeFilter, $sortBy, $sortOrder, $limit); ?>">
                                         <i class="bi bi-chevron-right"></i>
                                     </a>
                                 </li>

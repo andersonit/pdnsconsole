@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'create_tenant':
                 $name = trim($_POST['name'] ?? '');
                 $contactEmail = trim($_POST['contact_email'] ?? '');
+                $soaContactOverride = trim($_POST['soa_contact_override'] ?? '');
                 $maxDomains = intval($_POST['max_domains'] ?? 0);
                 
                 if (empty($name)) {
@@ -38,9 +39,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Invalid contact email address.');
                 }
                 
+                // Validate and normalize SOA contact override
+                if (!empty($soaContactOverride)) {
+                    // If it contains @, convert to dot format
+                    if (strpos($soaContactOverride, '@') !== false) {
+                        $soaContactOverride = str_replace('@', '.', $soaContactOverride);
+                    }
+                    
+                    // Validate format (should be like admin.example.com)
+                    if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/', $soaContactOverride)) {
+                        throw new Exception('SOA contact override must be in format: admin.example.com (or admin@example.com which will be converted)');
+                    }
+                }
+                
                 $db->execute(
-                    "INSERT INTO tenants (name, contact_email, max_domains) VALUES (?, ?, ?)",
-                    [$name, $contactEmail ?: null, $maxDomains]
+                    "INSERT INTO tenants (name, contact_email, soa_contact_override, max_domains) VALUES (?, ?, ?, ?)",
+                    [$name, $contactEmail ?: null, $soaContactOverride ?: null, $maxDomains]
                 );
                 
                 $message = 'Tenant created successfully.';
@@ -51,6 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $tenantId = intval($_POST['tenant_id'] ?? 0);
                 $name = trim($_POST['name'] ?? '');
                 $contactEmail = trim($_POST['contact_email'] ?? '');
+                $soaContactOverride = trim($_POST['soa_contact_override'] ?? '');
                 $maxDomains = intval($_POST['max_domains'] ?? 0);
                 $isActive = isset($_POST['is_active']) ? 1 : 0;
                 
@@ -62,9 +77,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Invalid contact email address.');
                 }
                 
+                // Validate and normalize SOA contact override
+                if (!empty($soaContactOverride)) {
+                    // If it contains @, convert to dot format
+                    if (strpos($soaContactOverride, '@') !== false) {
+                        $soaContactOverride = str_replace('@', '.', $soaContactOverride);
+                    }
+                    
+                    // Validate format (should be like admin.example.com)
+                    if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/', $soaContactOverride)) {
+                        throw new Exception('SOA contact override must be in format: admin.example.com (or admin@example.com which will be converted)');
+                    }
+                }
+                
                 $db->execute(
-                    "UPDATE tenants SET name = ?, contact_email = ?, max_domains = ?, is_active = ? WHERE id = ?",
-                    [$name, $contactEmail ?: null, $maxDomains, $isActive, $tenantId]
+                    "UPDATE tenants SET name = ?, contact_email = ?, soa_contact_override = ?, max_domains = ?, is_active = ? WHERE id = ?",
+                    [$name, $contactEmail ?: null, $soaContactOverride ?: null, $maxDomains, $isActive, $tenantId]
                 );
                 
                 $message = 'Tenant updated successfully.';
@@ -108,13 +136,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get all tenants with statistics
 $tenants = $db->fetchAll(
-    "SELECT t.*, 
+    "SELECT t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at, t.updated_at,
             COUNT(DISTINCT dt.domain_id) as domain_count,
             COUNT(DISTINCT ut.user_id) as user_count
      FROM tenants t
      LEFT JOIN domain_tenants dt ON t.id = dt.tenant_id
      LEFT JOIN user_tenants ut ON t.id = ut.tenant_id
-     GROUP BY t.id
+     GROUP BY t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at, t.updated_at
      ORDER BY t.created_at DESC"
 );
 
@@ -271,6 +299,14 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <input type="email" class="form-control" id="contact_email" name="contact_email">
                     </div>
                     <div class="mb-3">
+                        <label for="soa_contact_override" class="form-label">SOA Contact Override</label>
+                        <input type="text" class="form-control" id="soa_contact_override" name="soa_contact_override">
+                        <small class="text-muted">
+                            Optional: Override global SOA contact for this tenant's domains. 
+                            Enter as admin@example.com (will be converted) or admin.example.com
+                        </small>
+                    </div>
+                    <div class="mb-3">
                         <label for="max_domains" class="form-label">Domain Limit</label>
                         <input type="number" class="form-control" id="max_domains" name="max_domains" value="0" min="0">
                         <small class="text-muted">0 = Unlimited domains</small>
@@ -304,6 +340,14 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     <div class="mb-3">
                         <label for="edit_contact_email" class="form-label">Contact Email</label>
                         <input type="email" class="form-control" id="edit_contact_email" name="contact_email">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_soa_contact_override" class="form-label">SOA Contact Override</label>
+                        <input type="text" class="form-control" id="edit_soa_contact_override" name="soa_contact_override">
+                        <small class="text-muted">
+                            Optional: Override global SOA contact for this tenant's domains. 
+                            Enter as admin@example.com (will be converted) or admin.example.com
+                        </small>
                     </div>
                     <div class="mb-3">
                         <label for="edit_max_domains" class="form-label">Domain Limit</label>
@@ -361,6 +405,7 @@ function editTenant(tenantData) {
     document.getElementById('edit_tenant_id').value = tenantData.id;
     document.getElementById('edit_name').value = tenantData.name;
     document.getElementById('edit_contact_email').value = tenantData.contact_email || '';
+    document.getElementById('edit_soa_contact_override').value = tenantData.soa_contact_override || '';
     document.getElementById('edit_max_domains').value = tenantData.max_domains;
     document.getElementById('edit_is_active').checked = tenantData.is_active == 1;
     

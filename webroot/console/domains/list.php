@@ -14,17 +14,24 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 $userTenants = [];
 if (!$isSuperAdmin) {
     $tenantData = $user->getUserTenants($currentUser['id']);
-    $userTenants = array_column($tenantData, 'tenant_id');
+    $userTenants = array_column($tenantData, 'id');
     if (empty($userTenants)) {
         $error = 'No tenants assigned to your account. Please contact an administrator.';
     }
 }
 
-// Handle search and pagination
-$search = $_GET['search'] ?? '';
-$page = max(1, intval($_GET['page'] ?? 1));
-$limit = 25;
+// Handle search, filters, sorting and pagination
+$search = trim($_GET['search'] ?? '');
+$zoneTypeFilter = trim($_GET['zone_type'] ?? '');
+$tenantFilter = trim($_GET['tenant'] ?? '');
+$page = max(1, intval($_GET['p'] ?? 1));
+$limit = intval($_GET['limit'] ?? 25);
+$limit = in_array($limit, [10, 25, 50, 100]) ? $limit : 25; // Validate limit
 $offset = ($page - 1) * $limit;
+// Default sorting: alphabetically by domain name
+$sortBy = trim($_GET['sort'] ?? 'name');
+$sortOrder = strtoupper(trim($_GET['order'] ?? 'ASC'));
+$sortOrder = in_array($sortOrder, ['ASC', 'DESC']) ? $sortOrder : 'ASC';
 
 // Get domains based on user role
 $domains = [];
@@ -32,18 +39,13 @@ $totalCount = 0;
 
 try {
     if ($isSuperAdmin) {
-        $domains = $domain->getAllDomains($search, $limit, $offset);
-        $db = Database::getInstance();
-        $totalCount = $db->fetch(
-            "SELECT COUNT(DISTINCT d.id) as count FROM domains d" . 
-            (!empty($search) ? " WHERE d.name LIKE ?" : ""),
-            !empty($search) ? ['%' . $search . '%'] : []
-        )['count'];
+        $domains = $domain->getAllDomains($search, $zoneTypeFilter, $tenantFilter, $limit, $offset, $sortBy, $sortOrder);
+        $totalCount = $domain->getAllDomainsCount($search, $zoneTypeFilter, $tenantFilter);
     } else if (!empty($userTenants)) {
         // For simplicity, use first tenant if user has multiple
         $tenantId = $userTenants[0];
-        $domains = $domain->getDomainsForTenant($tenantId, $search, $limit, $offset);
-        $totalCount = $domain->getDomainCountForTenant($tenantId, $search);
+        $domains = $domain->getDomainsForTenant($tenantId, $search, $zoneTypeFilter, $limit, $offset, $sortBy, $sortOrder);
+        $totalCount = $domain->getDomainCountForTenant($tenantId, $search, $zoneTypeFilter);
     }
 } catch (Exception $e) {
     $error = 'Error loading domains: ' . $e->getMessage();
@@ -52,6 +54,28 @@ try {
 // Calculate pagination
 $totalPages = ceil($totalCount / $limit);
 $showPagination = $totalPages > 1;
+
+// Helper function for pagination URLs
+function buildDomainsPaginationUrl($pageNum, $search, $zoneTypeFilter, $tenantFilter, $sortBy, $sortOrder, $limit) {
+    $params = [
+        'page' => 'domains',
+        'p' => $pageNum,
+        'search' => $search,
+        'zone_type' => $zoneTypeFilter,
+        'tenant' => $tenantFilter,
+        'sort' => $sortBy,
+        'order' => $sortOrder,
+        'limit' => $limit
+    ];
+    return '?' . http_build_query(array_filter($params));
+}
+
+// Get tenants list for filter (super admin only)
+$tenantsList = [];
+if ($isSuperAdmin) {
+    $db = Database::getInstance();
+    $tenantsList = $db->fetchAll("SELECT id, name FROM tenants WHERE is_active = 1 ORDER BY name ASC");
+}
 
 // Page title
 $pageTitle = 'Domain Management';
@@ -103,7 +127,9 @@ $pageTitle = 'Domain Management';
                 <div class="card-body">
                     <form method="GET" class="row g-3">
                         <input type="hidden" name="page" value="domains">
-                        <div class="col-md-6">
+                        
+                        <div class="col-md-4">
+                            <label for="search" class="form-label">Search</label>
                             <div class="input-group">
                                 <span class="input-group-text">
                                     <i class="bi bi-search"></i>
@@ -113,14 +139,49 @@ $pageTitle = 'Domain Management';
                                        value="<?php echo htmlspecialchars($search); ?>">
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        
+                        <div class="col-md-2">
+                            <label for="zone_type" class="form-label">Zone Type</label>
+                            <select class="form-select" name="zone_type">
+                                <option value="">All Types</option>
+                                <option value="forward" <?php echo $zoneTypeFilter === 'forward' ? 'selected' : ''; ?>>Forward</option>
+                                <option value="reverse" <?php echo $zoneTypeFilter === 'reverse' ? 'selected' : ''; ?>>Reverse</option>
+                            </select>
+                        </div>
+                        
+                        <?php if ($isSuperAdmin): ?>
+                        <div class="col-md-2">
+                            <label for="tenant" class="form-label">Tenant</label>
+                            <select class="form-select" name="tenant">
+                                <option value="">All Tenants</option>
+                                <?php foreach ($tenantsList as $tenant): ?>
+                                    <option value="<?php echo $tenant['id']; ?>" 
+                                            <?php echo $tenantFilter == $tenant['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($tenant['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <?php endif; ?>
+                        
+                        <div class="col-md-2">
+                            <label for="limit" class="form-label">Per Page</label>
+                            <select class="form-select" name="limit">
+                                <option value="10" <?php echo $limit === 10 ? 'selected' : ''; ?>>10</option>
+                                <option value="25" <?php echo $limit === 25 ? 'selected' : ''; ?>>25</option>
+                                <option value="50" <?php echo $limit === 50 ? 'selected' : ''; ?>>50</option>
+                                <option value="100" <?php echo $limit === 100 ? 'selected' : ''; ?>>100</option>
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-2 d-flex align-items-end">
                             <button type="submit" class="btn btn-outline-primary me-2">
                                 <i class="bi bi-search me-1"></i>
                                 Search
                             </button>
                             <a href="?page=domains" class="btn btn-outline-secondary">
                                 <i class="bi bi-arrow-clockwise me-1"></i>
-                                Clear
+                                Reset
                             </a>
                         </div>
                     </form>
@@ -159,12 +220,36 @@ $pageTitle = 'Domain Management';
                             <table class="table table-hover mb-0">
                                 <thead class="table-light">
                                     <tr>
-                                        <th>Domain Name</th>
-                                        <th>Zone Type</th>
+                                        <th>
+                                            <a href="<?php echo buildDomainsPaginationUrl($page, $search, $zoneTypeFilter, $tenantFilter, 'name', $sortBy === 'name' && $sortOrder === 'ASC' ? 'DESC' : 'ASC', $limit); ?>" 
+                                               class="text-decoration-none text-dark">
+                                                Domain Name 
+                                                <?php if ($sortBy === 'name'): ?>
+                                                    <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
+                                                <?php endif; ?>
+                                            </a>
+                                        </th>
+                                        <th>
+                                            <a href="<?php echo buildDomainsPaginationUrl($page, $search, $zoneTypeFilter, $tenantFilter, 'zone_type', $sortBy === 'zone_type' && $sortOrder === 'ASC' ? 'DESC' : 'ASC', $limit); ?>" 
+                                               class="text-decoration-none text-dark">
+                                                Zone Type 
+                                                <?php if ($sortBy === 'zone_type'): ?>
+                                                    <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
+                                                <?php endif; ?>
+                                            </a>
+                                        </th>
                                         <th>Records</th>
                                         <th>Type</th>
                                         <?php if ($isSuperAdmin): ?>
-                                            <th>Tenant</th>
+                                            <th>
+                                                <a href="<?php echo buildDomainsPaginationUrl($page, $search, $zoneTypeFilter, $tenantFilter, 'tenant_name', $sortBy === 'tenant_name' && $sortOrder === 'ASC' ? 'DESC' : 'ASC', $limit); ?>" 
+                                                   class="text-decoration-none text-dark">
+                                                    Tenant 
+                                                    <?php if ($sortBy === 'tenant_name'): ?>
+                                                        <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
+                                                    <?php endif; ?>
+                                                </a>
+                                            </th>
                                         <?php endif; ?>
                                         <th>DNSSEC</th>
                                         <th>Created</th>
@@ -260,38 +345,59 @@ $pageTitle = 'Domain Management';
                 
                 <?php if ($showPagination): ?>
                     <div class="card-footer">
-                        <nav aria-label="Domain pagination">
-                            <ul class="pagination pagination-sm mb-0 justify-content-center">
-                                <?php if ($page > 1): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page=domains&search=<?php echo urlencode($search); ?>&page=<?php echo $page - 1; ?>">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                Showing <?php echo $offset + 1; ?>-<?php echo min($offset + $limit, $totalCount); ?> 
+                                of <?php echo number_format($totalCount); ?> domains
+                            </small>
+                            <nav aria-label="Domain pagination">
+                                <ul class="pagination pagination-sm mb-0">
+                                    <!-- Previous button -->
+                                    <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                                        <a class="page-link" href="<?php echo buildDomainsPaginationUrl($page - 1, $search, $zoneTypeFilter, $tenantFilter, $sortBy, $sortOrder, $limit); ?>">
                                             <i class="bi bi-chevron-left"></i>
                                         </a>
                                     </li>
-                                <?php endif; ?>
-                                
-                                <?php
-                                $startPage = max(1, $page - 2);
-                                $endPage = min($totalPages, $page + 2);
-                                
-                                for ($i = $startPage; $i <= $endPage; $i++):
-                                ?>
-                                    <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
-                                        <a class="page-link" href="?page=domains&search=<?php echo urlencode($search); ?>&page=<?php echo $i; ?>">
-                                            <?php echo $i; ?>
-                                        </a>
-                                    </li>
-                                <?php endfor; ?>
-                                
-                                <?php if ($page < $totalPages): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="?page=domains&search=<?php echo urlencode($search); ?>&page=<?php echo $page + 1; ?>">
+                                    
+                                    <?php
+                                    $startPage = max(1, $page - 2);
+                                    $endPage = min($totalPages, $page + 2);
+                                    
+                                    if ($startPage > 1): ?>
+                                        <li class="page-item">
+                                            <a class="page-link" href="<?php echo buildDomainsPaginationUrl(1, $search, $zoneTypeFilter, $tenantFilter, $sortBy, $sortOrder, $limit); ?>">1</a>
+                                        </li>
+                                        <?php if ($startPage > 2): ?>
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                                        <?php endif;
+                                    endif;
+                                    
+                                    for ($i = $startPage; $i <= $endPage; $i++): ?>
+                                        <li class="page-item <?php echo $i === $page ? 'active' : ''; ?>">
+                                            <a class="page-link" href="<?php echo buildDomainsPaginationUrl($i, $search, $zoneTypeFilter, $tenantFilter, $sortBy, $sortOrder, $limit); ?>">
+                                                <?php echo $i; ?>
+                                            </a>
+                                        </li>
+                                    <?php endfor;
+                                    
+                                    if ($endPage < $totalPages): ?>
+                                        <?php if ($endPage < $totalPages - 1): ?>
+                                            <li class="page-item disabled"><span class="page-link">...</span></li>
+                                        <?php endif; ?>
+                                        <li class="page-item">
+                                            <a class="page-link" href="<?php echo buildDomainsPaginationUrl($totalPages, $search, $zoneTypeFilter, $tenantFilter, $sortBy, $sortOrder, $limit); ?>"><?php echo $totalPages; ?></a>
+                                        </li>
+                                    <?php endif; ?>
+                                    
+                                    <!-- Next button -->
+                                    <li class="page-item <?php echo $page >= $totalPages ? 'disabled' : ''; ?>">
+                                        <a class="page-link" href="<?php echo buildDomainsPaginationUrl($page + 1, $search, $zoneTypeFilter, $tenantFilter, $sortBy, $sortOrder, $limit); ?>">
                                             <i class="bi bi-chevron-right"></i>
                                         </a>
                                     </li>
-                                <?php endif; ?>
-                            </ul>
-                        </nav>
+                                </ul>
+                            </nav>
+                        </div>
                     </div>
                 <?php endif; ?>
             </div>

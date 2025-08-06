@@ -6,6 +6,7 @@
 // Get required classes
 $user = new User();
 $settings = new Settings();
+$nameserver = new Nameserver();
 
 // Check if user is super admin
 if (!$user->isSuperAdmin($currentUser['id'])) {
@@ -26,8 +27,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if ($action === 'update_dns_settings') {
             $dnsSettings = [
-                'primary_nameserver' => trim($_POST['primary_nameserver'] ?? ''),
-                'secondary_nameserver' => trim($_POST['secondary_nameserver'] ?? ''),
                 'soa_contact' => trim($_POST['soa_contact'] ?? ''),
                 'default_ttl' => intval($_POST['default_ttl'] ?? 3600),
                 'soa_refresh' => intval($_POST['soa_refresh'] ?? 10800),
@@ -36,15 +35,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'soa_minimum' => intval($_POST['soa_minimum'] ?? 86400)
             ];
             
+            // Handle nameservers with the new Nameserver class
+            $nameservers = [];
+            
+            // Get primary and secondary nameservers
+            $primary = trim($_POST['primary_nameserver'] ?? '');
+            $secondary = trim($_POST['secondary_nameserver'] ?? '');
+            
+            if (!empty($primary)) {
+                $nameservers[] = $primary;
+            }
+            if (!empty($secondary)) {
+                $nameservers[] = $secondary;
+            }
+            
+            // Get additional nameservers
+            for ($i = 3; $i <= 10; $i++) {
+                $ns = trim($_POST["nameserver_{$i}"] ?? '');
+                if (!empty($ns)) {
+                    $nameservers[] = $ns;
+                }
+            }
+            
+            // Validate we have at least one nameserver
+            if (empty($nameservers)) {
+                throw new Exception('At least one nameserver is required.');
+            }
+            
+            // Update nameservers using the new class
+            $nameserver->bulkUpdateFromSettings($nameservers);
+            
+            // Update primary/secondary nameserver settings for backward compatibility
+            $dnsSettings['primary_nameserver'] = $nameservers[0] ?? '';
+            $dnsSettings['secondary_nameserver'] = $nameservers[1] ?? '';
+            
+            // Validate and normalize SOA contact email
+            if (!empty($dnsSettings['soa_contact'])) {
+                // If it contains @, convert to dot format
+                if (strpos($dnsSettings['soa_contact'], '@') !== false) {
+                    $dnsSettings['soa_contact'] = str_replace('@', '.', $dnsSettings['soa_contact']);
+                }
+                
+                // Validate format (should be like admin.example.com)
+                if (!preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$/', $dnsSettings['soa_contact'])) {
+                    throw new Exception('SOA contact must be in format: admin.example.com (or admin@example.com which will be converted)');
+                }
+            }
+            
             // Validate required fields
-            if (empty($dnsSettings['primary_nameserver'])) {
-                throw new Exception('Primary nameserver is required.');
-            }
-            
-            if (empty($dnsSettings['secondary_nameserver'])) {
-                throw new Exception('Secondary nameserver is required.');
-            }
-            
             if (empty($dnsSettings['soa_contact'])) {
                 throw new Exception('SOA contact email is required.');
             }
@@ -122,8 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get current DNS settings
 $dnsSettings = [];
-$dnsKeys = ['primary_nameserver', 'secondary_nameserver', 'soa_contact', 'default_ttl', 
-           'soa_refresh', 'soa_retry', 'soa_expire', 'soa_minimum'];
+$dnsKeys = ['soa_contact', 'default_ttl', 'soa_refresh', 'soa_retry', 'soa_expire', 'soa_minimum'];
 
 foreach ($dnsKeys as $key) {
     $setting = $db->fetch(
@@ -131,6 +168,17 @@ foreach ($dnsKeys as $key) {
         [$key]
     );
     $dnsSettings[$key] = $setting['setting_value'] ?? '';
+}
+
+// Get nameservers from the new table
+$nameservers = $nameserver->getActiveNameservers();
+$dnsSettings['primary_nameserver'] = $nameservers[0]['hostname'] ?? '';
+$dnsSettings['secondary_nameserver'] = $nameservers[1]['hostname'] ?? '';
+
+// Parse additional nameservers (beyond first 2)
+$additionalNameservers = [];
+for ($i = 2; $i < count($nameservers); $i++) {
+    $additionalNameservers[] = $nameservers[$i]['hostname'];
 }
 
 // Get current system settings
@@ -211,11 +259,37 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <small class="text-muted">Secondary NS record for new domains</small>
                         </div>
                         
+                        <!-- Additional Nameservers -->
+                        <div class="mb-3">
+                            <label class="form-label">Additional Nameservers (Optional)</label>
+                            <div id="additional-nameservers">
+                                <?php for ($i = 3; $i <= 10; $i++): ?>
+                                    <div class="input-group mb-2 additional-ns-group" <?php echo ($i > 3 && !isset($additionalNameservers[$i-3])) ? 'style="display:none;"' : ''; ?>>
+                                        <span class="input-group-text">NS <?php echo $i; ?></span>
+                                        <input type="text" class="form-control" name="nameserver_<?php echo $i; ?>" 
+                                               value="<?php echo htmlspecialchars($additionalNameservers[$i-3] ?? ''); ?>" 
+                                               placeholder="ns<?php echo $i; ?>.example.com">
+                                        <?php if ($i > 3): ?>
+                                            <button type="button" class="btn btn-outline-danger remove-ns-btn">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php endfor; ?>
+                            </div>
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="add-nameserver-btn">
+                                <i class="bi bi-plus-circle me-1"></i>Add Nameserver
+                            </button>
+                            <small class="text-muted d-block mt-1">You can add up to 8 additional nameservers</small>
+                        </div>
+                        
                         <div class="mb-3">
                             <label for="soa_contact" class="form-label">SOA Contact Email *</label>
                             <input type="text" class="form-control" id="soa_contact" name="soa_contact" 
                                    value="<?php echo htmlspecialchars($dnsSettings['soa_contact']); ?>" required>
-                            <small class="text-muted">Contact email for SOA records (admin.example.com format)</small>
+                            <small class="text-muted">
+                                Contact email for SOA records. Enter as admin@example.com or directly as admin.example.com
+                            </small>
                         </div>
                         
                         <div class="mb-3">
@@ -380,5 +454,55 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const addBtn = document.getElementById('add-nameserver-btn');
+    const nsContainer = document.getElementById('additional-nameservers');
+    
+    addBtn.addEventListener('click', function() {
+        const hiddenGroups = nsContainer.querySelectorAll('.additional-ns-group[style*="display:none"], .additional-ns-group[style*="display: none"]');
+        if (hiddenGroups.length > 0) {
+            hiddenGroups[0].style.display = 'flex';
+            hiddenGroups[0].querySelector('input').focus();
+            
+            // Hide add button if all nameservers are visible
+            if (hiddenGroups.length === 1) {
+                addBtn.style.display = 'none';
+            }
+        }
+    });
+    
+    // Handle remove buttons
+    nsContainer.addEventListener('click', function(e) {
+        if (e.target.classList.contains('remove-ns-btn') || e.target.parentNode.classList.contains('remove-ns-btn')) {
+            const group = e.target.closest('.additional-ns-group');
+            group.querySelector('input').value = '';
+            group.style.display = 'none';
+            
+            // Show add button
+            addBtn.style.display = 'inline-block';
+        }
+    });
+    
+    // SOA email format conversion
+    const soaContactInput = document.getElementById('soa_contact');
+    soaContactInput.addEventListener('blur', function() {
+        let value = this.value.trim();
+        if (value && value.includes('@')) {
+            this.value = value.replace('@', '.');
+            // Show a brief notification
+            const small = this.parentNode.querySelector('small');
+            const originalText = small.textContent;
+            small.textContent = 'Email format converted to DNS format (@ → .)';
+            small.style.color = '#198754';
+            setTimeout(() => {
+                small.textContent = originalText;
+                small.style.color = '';
+            }, 3000);
+        }
+    });
+});
+</script>
 
 <?php include $_SERVER['DOCUMENT_ROOT'] . '/includes/footer.php'; ?>
