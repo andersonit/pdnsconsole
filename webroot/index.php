@@ -21,7 +21,7 @@ $page = $_GET['page'] ?? 'dashboard';
 $action = $_GET['action'] ?? 'index';
 
 // Define public pages that don't require authentication
-$publicPages = ['login', 'logout'];
+$publicPages = ['login', 'logout', 'forgot_password'];
 
 // Check authentication using PHP sessions
 if (!in_array($page, $publicPages) && empty($_SESSION['user_id'])) {
@@ -163,6 +163,12 @@ if ($page === 'login') {
     }
     
     include __DIR__ . '/console/login.php';
+    exit;
+}
+
+// Handle forgot password
+if ($page === 'forgot_password') {
+    include __DIR__ . '/console/forgot_password.php';
     exit;
 }
 

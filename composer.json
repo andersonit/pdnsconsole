@@ -3,7 +3,8 @@
     "description": "PowerDNS Console Management System",
     "type": "project",
     "require": {
-        "robthree/twofactorauth": "^1.8"
+        "robthree/twofactorauth": "^1.8",
+        "phpmailer/phpmailer": "^6.10"
     },
     "authors": [
         {

@@ -86,6 +86,13 @@ if ($themeInfo['effective_dark']) {
                         Sign In
                     </button>
                 </div>
+                
+                <div class="text-center mt-3">
+                    <a href="#" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#forgotPasswordModal">
+                        <i class="bi bi-key me-1"></i>
+                        Forgot your password?
+                    </a>
+                </div>
             <?php else: ?>
                 <!-- MFA verification form -->
                 <input type="hidden" name="username" value="<?php echo htmlspecialchars($tempUser['username']); ?>">
@@ -150,6 +157,46 @@ if ($themeInfo['effective_dark']) {
         </div>
     </div>
     
+    <!-- Forgot Password Modal -->
+    <div class="modal fade" id="forgotPasswordModal" tabindex="-1" aria-labelledby="forgotPasswordModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="forgotPasswordModalLabel">
+                        <i class="bi bi-key me-2"></i>
+                        Reset Password
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="forgotPasswordForm">
+                    <div class="modal-body">
+                        <p class="text-muted">Enter your email address and we'll send you a link to reset your password.</p>
+                        
+                        <div id="forgotPasswordError" class="alert alert-danger d-none" role="alert"></div>
+                        <div id="forgotPasswordSuccess" class="alert alert-success d-none" role="alert"></div>
+                        
+                        <div class="form-floating">
+                            <input type="email" 
+                                   class="form-control" 
+                                   id="resetEmail" 
+                                   name="reset_email" 
+                                   placeholder="name@example.com"
+                                   required>
+                            <label for="resetEmail">Email Address</label>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="sendResetBtn">
+                            <i class="bi bi-envelope me-1"></i>
+                            Send Reset Link
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -157,6 +204,58 @@ if ($themeInfo['effective_dark']) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
     
     <script>
+        // Forgot password form handling
+        document.getElementById('forgotPasswordForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('resetEmail').value;
+            const btn = document.getElementById('sendResetBtn');
+            const errorDiv = document.getElementById('forgotPasswordError');
+            const successDiv = document.getElementById('forgotPasswordSuccess');
+            
+            // Hide previous messages
+            errorDiv.classList.add('d-none');
+            successDiv.classList.add('d-none');
+            
+            // Disable button and show loading
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
+            
+            // Send AJAX request
+            fetch('?page=forgot_password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'reset_email=' + encodeURIComponent(email)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    successDiv.textContent = data.message;
+                    successDiv.classList.remove('d-none');
+                    document.getElementById('resetEmail').value = '';
+                    
+                    // Auto-close modal after 3 seconds
+                    setTimeout(() => {
+                        bootstrap.Modal.getInstance(document.getElementById('forgotPasswordModal')).hide();
+                    }, 3000);
+                } else {
+                    errorDiv.textContent = data.error;
+                    errorDiv.classList.remove('d-none');
+                }
+            })
+            .catch(error => {
+                errorDiv.textContent = 'An error occurred. Please try again.';
+                errorDiv.classList.remove('d-none');
+            })
+            .finally(() => {
+                // Re-enable button
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-envelope me-1"></i>Send Reset Link';
+            });
+        });
+        
         // MFA code formatting
         const mfaCodeInput = document.getElementById('mfa_code');
         if (mfaCodeInput) {

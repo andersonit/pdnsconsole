@@ -366,4 +366,19 @@ INSERT INTO nameservers (hostname, priority, is_active) VALUES
 -- 6. White-label branding system
 -- 7. Centralized nameserver management with automatic NS record updates
 -- 8. Tenant-specific SOA contact override functionality
+-- 9. Password reset functionality with secure tokens
+-- =============================================================================
+
+-- Password reset tokens table
+CREATE TABLE password_reset_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+    INDEX idx_token (token),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- =============================================================================

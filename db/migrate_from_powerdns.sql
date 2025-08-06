@@ -370,6 +370,22 @@ COMMIT;
 -- SELECT COUNT(*) FROM records;
 
 -- =============================================================================
+-- PART 5: Password Reset Functionality
+-- =============================================================================
+
+-- Password reset tokens table
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+    INDEX idx_token (token),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =============================================================================
 -- Notes:
 -- 1. This script is safe to run multiple times (uses IF NOT EXISTS and IGNORE)
 -- 2. All existing PowerDNS data is preserved
@@ -377,6 +393,7 @@ COMMIT;
 -- 4. Creates all administrative tables needed for PDNS Console
 -- 5. Migrates old nameserver settings from global_settings to nameservers table
 -- 6. Adds soa_contact_override column to tenants table for tenant-specific SOA contacts
--- 7. Populates default configuration - update nameservers via web interface
--- 8. Automatic nameserver changes will propagate to all domains
+-- 7. Adds password reset tokens table for secure password recovery
+-- 8. Populates default configuration - update nameservers via web interface
+-- 9. Automatic nameserver changes will propagate to all domains
 -- =============================================================================

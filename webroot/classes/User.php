@@ -502,6 +502,167 @@ class User {
             return false;
         }
     }
+    
+    /**
+     * Generate and store password reset token
+     */
+    public function generatePasswordResetToken($email) {
+        try {
+            // Check if user exists with this email
+            $user = $this->db->fetch(
+                "SELECT id, username, email FROM admin_users WHERE email = ? AND is_active = 1",
+                [$email]
+            );
+            
+            if (!$user) {
+                return ['success' => false, 'error' => 'No account found with that email address'];
+            }
+            
+            // Generate secure token
+            $token = bin2hex(random_bytes(32));
+            $expiresAt = date('Y-m-d H:i:s', strtotime('+1 hour'));
+            
+            // Store token (create table if not exists)
+            $this->createPasswordResetTableIfNotExists();
+            
+            // Delete any existing tokens for this user
+            $this->db->execute(
+                "DELETE FROM password_reset_tokens WHERE user_id = ?",
+                [$user['id']]
+            );
+            
+            // Insert new token
+            $this->db->execute(
+                "INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at) VALUES (?, ?, ?, NOW())",
+                [$user['id'], $token, $expiresAt]
+            );
+            
+            // Log the password reset request
+            $this->auditLog->logAction($user['id'], 'PASSWORD_RESET_REQUESTED', 'admin_users', $user['id'], null, null, null, [
+                'email' => $email
+            ]);
+            
+            return [
+                'success' => true, 
+                'token' => $token,
+                'user' => $user
+            ];
+            
+        } catch (Exception $e) {
+            error_log("Password reset token generation error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Unable to generate reset token'];
+        }
+    }
+    
+    /**
+     * Validate password reset token
+     */
+    public function validatePasswordResetToken($token) {
+        try {
+            $result = $this->db->fetch(
+                "SELECT prt.user_id, prt.expires_at, au.username, au.email 
+                 FROM password_reset_tokens prt
+                 JOIN admin_users au ON prt.user_id = au.id
+                 WHERE prt.token = ? AND prt.expires_at > NOW() AND au.is_active = 1",
+                [$token]
+            );
+            
+            if (!$result) {
+                return ['success' => false, 'error' => 'Invalid or expired reset token'];
+            }
+            
+            return ['success' => true, 'user' => $result];
+            
+        } catch (Exception $e) {
+            error_log("Password reset token validation error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Unable to validate reset token'];
+        }
+    }
+    
+    /**
+     * Reset password using token
+     */
+    public function resetPasswordWithToken($token, $newPassword) {
+        try {
+            // Validate token first
+            $tokenResult = $this->validatePasswordResetToken($token);
+            if (!$tokenResult['success']) {
+                return $tokenResult;
+            }
+            
+            $userId = $tokenResult['user']['user_id'];
+            
+            // Validate new password
+            if (strlen($newPassword) < 8) {
+                return ['success' => false, 'error' => 'Password must be at least 8 characters long'];
+            }
+            
+            // Hash new password
+            $passwordHash = $this->encryption->hashPassword($newPassword);
+            
+            // Update password
+            $this->db->execute(
+                "UPDATE admin_users SET password_hash = ? WHERE id = ?",
+                [$passwordHash, $userId]
+            );
+            
+            // Delete the used token
+            $this->db->execute(
+                "DELETE FROM password_reset_tokens WHERE token = ?",
+                [$token]
+            );
+            
+            // Clear any failed login attempts
+            $this->clearFailedLogins($userId);
+            
+            // Log the password reset
+            $this->auditLog->logAction($userId, 'PASSWORD_RESET_COMPLETED', 'admin_users', $userId, null, null, null, [
+                'reset_method' => 'token'
+            ]);
+            
+            return ['success' => true, 'message' => 'Password has been successfully reset'];
+            
+        } catch (Exception $e) {
+            error_log("Password reset with token error: " . $e->getMessage());
+            return ['success' => false, 'error' => 'Unable to reset password'];
+        }
+    }
+    
+    /**
+     * Clean up expired password reset tokens
+     */
+    public function cleanupExpiredTokens() {
+        try {
+            $this->db->execute("DELETE FROM password_reset_tokens WHERE expires_at < NOW()");
+            return true;
+        } catch (Exception $e) {
+            error_log("Token cleanup error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Create password reset tokens table if it doesn't exist
+     */
+    private function createPasswordResetTableIfNotExists() {
+        try {
+            $sql = "CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                token VARCHAR(64) NOT NULL UNIQUE,
+                expires_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+                INDEX idx_token (token),
+                INDEX idx_expires (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+            
+            $this->db->execute($sql);
+        } catch (Exception $e) {
+            error_log("Error creating password reset tokens table: " . $e->getMessage());
+            throw $e;
+        }
+    }
 }
 
 ?>

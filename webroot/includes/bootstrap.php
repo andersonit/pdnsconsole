@@ -39,4 +39,5 @@ require_once __DIR__ . '/../classes/User.php';
 require_once __DIR__ . '/../classes/Domain.php';
 require_once __DIR__ . '/../classes/Records.php';
 require_once __DIR__ . '/../classes/Nameserver.php';
+require_once __DIR__ . '/../classes/Email.php';
 ?>
