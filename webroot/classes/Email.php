@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../../vendor/autoload.php';
+require_once __DIR__ . '/Settings.php';
+require_once __DIR__ . '/AuditLog.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
@@ -9,32 +11,37 @@ class Email {
     
     private $mailer;
     private $auditLog;
+    private $settings;
     
     public function __construct() {
         $this->mailer = new PHPMailer(true);
         $this->auditLog = new AuditLog();
+        $this->settings = new Settings();
         $this->configureMailer();
     }
     
     private function configureMailer() {
         try {
+            // Get email settings from database
+            $emailSettings = $this->settings->getEmailSettings();
+            
             // Server settings
             $this->mailer->isSMTP();
-            $this->mailer->Host = SMTP_HOST;
+            $this->mailer->Host = $emailSettings['smtp_host'];
             $this->mailer->SMTPAuth = true;
-            $this->mailer->Username = SMTP_USERNAME;
-            $this->mailer->Password = SMTP_PASSWORD;
-            $this->mailer->Port = SMTP_PORT;
+            $this->mailer->Username = $emailSettings['smtp_username'];
+            $this->mailer->Password = $emailSettings['smtp_password'];
+            $this->mailer->Port = (int)$emailSettings['smtp_port'];
             
             // Security settings
-            if (SMTP_SECURE === 'tls') {
+            if ($emailSettings['smtp_secure'] === 'tls' || $emailSettings['smtp_secure'] === 'starttls') {
                 $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            } elseif (SMTP_SECURE === 'ssl') {
+            } elseif ($emailSettings['smtp_secure'] === 'ssl') {
                 $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
             }
             
             // Default From address
-            $this->mailer->setFrom(SMTP_FROM_EMAIL, SMTP_FROM_NAME);
+            $this->mailer->setFrom($emailSettings['smtp_from_email'], $emailSettings['smtp_from_name']);
             
             // Character set
             $this->mailer->CharSet = 'UTF-8';

@@ -70,7 +70,12 @@ if ($page === 'logout') {
 // Handle login page
 if ($page === 'login') {
     if (!empty($_SESSION['user_id'])) {
-        header('Location: ?page=dashboard');
+        // Role-based redirect for already logged in users
+        if ($user->isSuperAdmin($_SESSION['user_id'])) {
+            header('Location: ?page=admin_dashboard');
+        } else {
+            header('Location: ?page=zone_manage');
+        }
         exit;
     }
     
@@ -119,7 +124,12 @@ if ($page === 'login') {
                 // Update last login
                 $user->updateLastLogin($userId);
                 
-                header('Location: ?page=dashboard');
+                // Role-based redirect
+                if ($user->isSuperAdmin($userId)) {
+                    header('Location: ?page=admin_dashboard');
+                } else {
+                    header('Location: ?page=zone_manage');
+                }
                 exit;
             } else {
                 $loginError = 'Invalid 2FA code. Please try again.';
@@ -148,7 +158,12 @@ if ($page === 'login') {
                     // Update last login
                     $user->updateLastLogin($userId);
                     
-                    header('Location: ?page=dashboard');
+                    // Role-based redirect
+                    if ($user->isSuperAdmin($userId)) {
+                        header('Location: ?page=admin_dashboard');
+                    } else {
+                        header('Location: ?page=zone_manage');
+                    }
                     exit;
                 }
             } else {
@@ -178,11 +193,19 @@ $pageFile = '';
 // Map pages to files
 $pageRoutes = [
     'dashboard' => 'console/dashboard.php',
-    'domains' => 'console/domains/list.php',
-    'domain_add' => 'console/domains/add.php',
-    'domain_bulk_add' => 'console/domains/add_bulk.php',
-    'domain_edit' => 'console/domains/edit.php',
-    'domain_delete' => 'console/domains/delete.php',
+    'zone_manage' => 'console/zones/manage.php',
+    'zones' => 'console/zones/list.php',
+    'domains' => 'console/zones/list.php', // Legacy support
+    'zone_add' => 'console/zones/add.php',
+    'domain_add' => 'console/zones/add.php', // Legacy support
+    'zone_bulk_add' => 'console/zones/add_bulk.php', 
+    'domain_bulk_add' => 'console/zones/add_bulk.php', // Legacy support
+    'zone_edit' => 'console/zones/edit.php',
+    'domain_edit' => 'console/zones/edit.php', // Legacy support
+    'zone_delete' => 'console/zones/delete.php',
+    'domain_delete' => 'console/zones/delete.php', // Legacy support
+    'zone_dnssec' => 'console/zones/dnssec.php',
+    'zone_ddns' => 'console/zones/ddns.php',
     'records' => 'console/records/list.php',
     'record_add' => 'console/records/add.php',
     'record_bulk' => 'console/records/add_bulk.php',
@@ -197,6 +220,7 @@ $pageRoutes = [
     'admin_users' => 'console/admin/users.php',
     'admin_tenants' => 'console/admin/tenants.php',
     'admin_settings' => 'console/admin/settings.php',
+    'admin_branding' => 'console/admin/branding.php',
     'admin_system' => 'console/admin/system.php',
     'admin_record_types' => 'console/admin/record_types.php',
     'admin_audit' => 'console/admin/audit.php',
@@ -206,15 +230,29 @@ $pageRoutes = [
 if (isset($pageRoutes[$page])) {
     $pageFile = __DIR__ . '/' . $pageRoutes[$page];
 } else {
-    // Default to dashboard
-    $pageFile = __DIR__ . '/console/dashboard.php';
-    $page = 'dashboard';
+    // Default to role-based landing page
+    if ($user->isSuperAdmin($currentUser['id'])) {
+        $pageFile = __DIR__ . '/console/admin/dashboard.php';
+        $page = 'admin_dashboard';
+    } else {
+        $pageFile = __DIR__ . '/console/zones/manage.php';
+        $page = 'zone_manage';
+    }
 }
 
 // Check admin permissions for admin pages
 if (strpos($page, 'admin_') === 0 && !$user->isSuperAdmin($currentUser['id'])) {
-    header('HTTP/1.0 403 Forbidden');
-    die('Access denied. Super admin privileges required.');
+    // Allow tenant admins to access tenant management
+    if ($page === 'admin_tenants') {
+        $userTenants = $user->getUserTenants($currentUser['id']);
+        if (empty($userTenants)) {
+            header('HTTP/1.0 403 Forbidden');
+            die('Access denied. No tenant assignments found.');
+        }
+    } else {
+        header('HTTP/1.0 403 Forbidden');
+        die('Access denied. Super admin privileges required.');
+    }
 }
 
 // Check if file exists

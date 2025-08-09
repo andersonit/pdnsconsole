@@ -15,7 +15,7 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 // Get domain ID
 $domainId = intval($_GET['domain_id'] ?? 0);
 if (empty($domainId)) {
-    header('Location: ?page=domains');
+    header('Location: ?page=zones');
     exit;
 }
 
@@ -37,10 +37,10 @@ $domainInfo = null;
 try {
     $domainInfo = $domain->getDomainById($domainId, $tenantId);
     if (!$domainInfo) {
-        $error = 'Domain not found or access denied.';
+        $error = 'Zone not found or access denied.';
     }
 } catch (Exception $e) {
-    $error = 'Error loading domain: ' . $e->getMessage();
+    $error = 'Error loading zone: ' . $e->getMessage();
 }
 
 // Get zone type from domain info
@@ -175,9 +175,9 @@ $pageTitle = 'Bulk Add DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name']
                 
                 <?php if (!$domainInfo): ?>
                     <div class="text-center">
-                        <a href="?page=domains" class="btn btn-primary">
+                        <a href="?page=zones" class="btn btn-primary">
                             <i class="bi bi-arrow-left me-1"></i>
-                            Back to Domains
+                            Back to Zones
                         </a>
                     </div>
                 <?php endif; ?>

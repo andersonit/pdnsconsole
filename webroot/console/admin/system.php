@@ -30,6 +30,52 @@ $systemInfo = [
     'disk_free' => disk_free_space('.')
 ];
 
+// Get system uptime
+function getSystemUptime() {
+    $uptime = null;
+    $uptimeText = 'Unknown';
+    
+    // Try to get uptime from /proc/uptime (Linux)
+    if (file_exists('/proc/uptime') && is_readable('/proc/uptime')) {
+        $uptimeData = file_get_contents('/proc/uptime');
+        if ($uptimeData !== false) {
+            $uptime = floatval(explode(' ', trim($uptimeData))[0]);
+        }
+    }
+    
+    // Try alternative method using 'uptime' command
+    if ($uptime === null && function_exists('exec')) {
+        $output = [];
+        exec('uptime -s 2>/dev/null', $output);
+        if (!empty($output[0])) {
+            $bootTime = strtotime($output[0]);
+            if ($bootTime !== false) {
+                $uptime = time() - $bootTime;
+            }
+        }
+    }
+    
+    // Format uptime if we got it
+    if ($uptime !== null) {
+        $uptimeSeconds = intval($uptime); // Convert to integer first
+        $days = intval($uptimeSeconds / 86400);
+        $hours = intval(($uptimeSeconds % 86400) / 3600);
+        $minutes = intval(($uptimeSeconds % 3600) / 60);
+        
+        if ($days > 0) {
+            $uptimeText = $days . "d " . $hours . "h " . $minutes . "m";
+        } elseif ($hours > 0) {
+            $uptimeText = $hours . "h " . $minutes . "m";
+        } else {
+            $uptimeText = $minutes . "m";
+        }
+    }
+    
+    return array('seconds' => $uptime, 'formatted' => $uptimeText);
+}
+
+$uptimeInfo = getSystemUptime();
+
 // Database information
 try {
     $dbVersion = $db->fetch("SELECT VERSION() as version")['version'] ?? 'Unknown';
@@ -121,6 +167,16 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 </span>
                             <?php else: ?>
                                 <span class="text-muted">N/A</span>
+                            <?php endif; ?>
+                        </dd>
+                        
+                        <dt class="col-sm-4">System Uptime:</dt>
+                        <dd class="col-sm-8">
+                            <span class="badge bg-info">
+                                <?php echo htmlspecialchars($uptimeInfo['formatted']); ?>
+                            </span>
+                            <?php if ($uptimeInfo['seconds'] !== null): ?>
+                                <br><small class="text-muted"><?php echo number_format($uptimeInfo['seconds']); ?> seconds</small>
                             <?php endif; ?>
                         </dd>
                     </dl>
@@ -336,8 +392,8 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                     <i class="bi bi-clock text-warning"></i>
                                 </div>
                                 <div>
-                                    <div class="fw-semibold">Uptime</div>
-                                    <small class="text-muted">Since deployment</small>
+                                    <div class="fw-semibold">System Uptime</div>
+                                    <small class="text-muted"><?php echo htmlspecialchars($uptimeInfo['formatted']); ?></small>
                                 </div>
                             </div>
                         </div>

@@ -145,7 +145,7 @@ $domainTypes = [
 ];
 
 // Page setup
-$pageTitle = 'Bulk Add Domains';
+$pageTitle = 'Bulk Add Zones';
 include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
 
@@ -157,14 +157,14 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 <div>
                     <h1 class="h3 mb-0">
                         <i class="bi bi-layers me-2"></i>
-                        Bulk Add Domains
+                        Bulk Add Zones
                     </h1>
-                    <p class="text-muted mb-0">Add multiple domains at once</p>
+                    <p class="text-muted mb-0">Add multiple zones at once</p>
                 </div>
                 <div>
-                    <a href="?page=domains" class="btn btn-outline-secondary">
+                    <a href="?page=zones" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left me-1"></i>
-                        Back to Domains
+                        Back to Zones
                     </a>
                 </div>
             </div>
@@ -298,15 +298,15 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <!-- Domain Names Input -->
                             <div class="mb-4">
                                 <label for="domain_names" class="form-label">
-                                    <span id="domain-label">Domain Names</span> <span class="text-danger">*</span>
+                                    <span id="domain-label">Zone Names</span> <span class="text-danger">*</span>
                                 </label>
                                 <textarea class="form-control" id="domain_names" name="domain_names" rows="10" 
-                                          placeholder="Enter one domain per line..."
+                                          placeholder="Enter one zone per line..."
                                           style="font-family: monospace;" required><?php echo htmlspecialchars($_POST['domain_names'] ?? ''); ?></textarea>
                                 <div class="form-text">
                                     <div id="zone-help">
                                         <div id="forward-help">
-                                            <strong>Forward zones:</strong> Enter domain names, one per line (e.g., example.com, test.org)
+                                            <strong>Forward zones:</strong> Enter zone names, one per line (e.g., example.com, test.org)
                                         </div>
                                         <div id="reverse-help" style="display: none;">
                                             <strong>Reverse zones:</strong> Enter IP networks or individual IPs, one per line:<br>
@@ -318,13 +318,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </div>
 
                             <div class="d-flex justify-content-between">
-                                <a href="?page=domains" class="btn btn-secondary">
+                                <a href="?page=zones" class="btn btn-secondary">
                                     <i class="bi bi-arrow-left me-1"></i>
-                                    Back to Domains
+                                    Back to Zones
                                 </a>
                                 <button type="submit" class="btn btn-primary">
                                     <i class="bi bi-layers me-1"></i>
-                                    Create Domains
+                                    Create Zones
                                 </button>
                             </div>
                         </form>
@@ -354,7 +354,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                     </code>
                                 </div>
                                 <p class="small text-muted">
-                                    Each domain will automatically get SOA and NS records based on your global DNS settings.
+                                    Each zone will automatically get SOA and NS records based on your global DNS settings.
                                 </p>
                             </div>
                             <div id="reverse-tips" style="display: none;">

@@ -15,8 +15,8 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 $domainId = intval($_GET['domain_id'] ?? 0);
 $recordId = intval($_POST['record_id'] ?? 0);
 
-if (empty($domainId) || empty($recordId)) {
-    header('Location: ?page=domains');
+if (empty($domainId)) {
+    header('Location: ?page=zones');
     exit;
 }
 

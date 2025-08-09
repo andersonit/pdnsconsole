@@ -6,10 +6,10 @@
 // Get dashboard statistics
 $db = Database::getInstance();
 
-// Count domains (tenant-filtered for non-super admins)
+// Count zones (tenant-filtered for non-super admins)
 if ($user->isSuperAdmin($currentUser['id'])) {
-    $domainsCount = $db->fetch("SELECT COUNT(*) as count FROM domains");
-    $totalDomains = $domainsCount['count'] ?? 0;
+    $zonesCount = $db->fetch("SELECT COUNT(*) as count FROM domains");
+    $totalZones = $zonesCount['count'] ?? 0;
     
     $usersCount = $db->fetch("SELECT COUNT(*) as count FROM admin_users WHERE is_active = 1");
     $totalUsers = $usersCount['count'] ?? 0;
@@ -17,7 +17,7 @@ if ($user->isSuperAdmin($currentUser['id'])) {
     $tenantsCount = $db->fetch("SELECT COUNT(*) as count FROM tenants WHERE is_active = 1");
     $totalTenants = $tenantsCount['count'] ?? 0;
 } else {
-    // For tenant admins, show only their domains
+    // For tenant admins, show only their zones
     $userTenants = $db->fetchAll(
         "SELECT tenant_id FROM user_tenants WHERE user_id = ?", 
         [$currentUser['id']]
@@ -26,15 +26,15 @@ if ($user->isSuperAdmin($currentUser['id'])) {
     
     if (!empty($tenantIds)) {
         $placeholders = str_repeat('?,', count($tenantIds) - 1) . '?';
-        $domainsCount = $db->fetch(
+        $zonesCount = $db->fetch(
             "SELECT COUNT(DISTINCT d.id) as count FROM domains d 
              JOIN domain_tenants dt ON d.id = dt.domain_id 
              WHERE dt.tenant_id IN ($placeholders)", 
             $tenantIds
         );
-        $totalDomains = $domainsCount['count'] ?? 0;
+        $totalZones = $zonesCount['count'] ?? 0;
     } else {
-        $totalDomains = 0;
+        $totalZones = 0;
     }
     
     $totalUsers = null; // Hide for tenant admins
@@ -45,16 +45,16 @@ if ($user->isSuperAdmin($currentUser['id'])) {
 $recordsCount = $db->fetch("SELECT COUNT(*) as count FROM records");
 $totalRecords = $recordsCount['count'] ?? 0;
 
-// Get DNSSEC enabled domains count
+// Get DNSSEC enabled zones count
 $dnssecCount = $db->fetch(
     "SELECT COUNT(DISTINCT d.id) as count FROM domains d 
      JOIN domainmetadata dm ON d.id = dm.domain_id 
      WHERE dm.kind = 'NSEC3PARAM' OR dm.kind = 'PRESIGNED'"
 );
-$dnssecDomains = $dnssecCount['count'] ?? 0;
+$dnssecZones = $dnssecCount['count'] ?? 0;
 
-// Get recent domains
-$recentDomains = $db->fetchAll(
+// Get recent zones
+$recentZones = $db->fetchAll(
     "SELECT d.id, d.name, d.type, dt.created_at 
      FROM domains d 
      LEFT JOIN domain_tenants dt ON d.id = dt.domain_id 
@@ -82,7 +82,7 @@ $pageTitle = 'Dashboard';
                     Super Administrator Dashboard - Manage all system resources
                 <?php else: ?>
                     <i class="bi bi-person-badge me-1 text-info"></i>
-                    DNS Management Dashboard - Manage your domains and records
+                    DNS Management Dashboard - Manage your zones and records
                 <?php endif; ?>
             </p>
         </div>
@@ -109,30 +109,30 @@ $pageTitle = 'Dashboard';
                 DNS Management
             </h3>
             <div class="row justify-content-center">
-                <!-- Domain Management Card -->
+                <!-- Zone Management Card -->
                 <div class="col-md-6 mb-4">
                     <div class="card h-100 shadow-sm border-0 hover-lift">
                         <div class="card-header bg-primary text-white">
                             <div class="d-flex align-items-center justify-content-center">
-                                <i class="bi bi-globe2 fs-4 me-2"></i>
-                                <h5 class="card-title mb-0">Domains</h5>
+                                <i class="bi bi-globe fs-4 me-2"></i>
+                                <h5 class="card-title mb-0">Zones</h5>
                             </div>
                         </div>
                         <div class="card-body">
-                            <p class="card-text text-muted text-center">Manage your DNS domains and domain settings.</p>
+                            <p class="card-text text-muted text-center">Manage your DNS zones and zone settings.</p>
                             <div class="row g-2">
                                 <div class="col-12">
-                                    <a href="?page=domains" class="btn btn-outline-primary btn-sm w-100">
-                                        <i class="bi bi-list-ul me-1"></i> View All Domains
+                                    <a href="?page=zones" class="btn btn-outline-primary btn-sm w-100">
+                                        <i class="bi bi-list-ul me-1"></i> View All Zones
                                     </a>
                                 </div>
                                 <div class="col-6">
-                                    <a href="?page=domain_add" class="btn btn-primary btn-sm w-100">
-                                        <i class="bi bi-plus-circle me-1"></i> Add Domain
+                                    <a href="?page=zone_add" class="btn btn-primary btn-sm w-100">
+                                        <i class="bi bi-plus-circle me-1"></i> Add Zone
                                     </a>
                                 </div>
                                 <div class="col-6">
-                                    <a href="?page=domain_bulk_add" class="btn btn-primary btn-sm w-100">
+                                    <a href="?page=zone_bulk_add" class="btn btn-primary btn-sm w-100">
                                         <i class="bi bi-layers me-1"></i> Bulk Add
                                     </a>
                                 </div>
@@ -140,8 +140,8 @@ $pageTitle = 'Dashboard';
                         </div>
                         <div class="card-footer bg-light text-center">
                             <small class="text-muted">
-                                <i class="bi bi-bar-chart me-1"></i>
-                                <?php echo number_format($totalDomains); ?> domains managed
+                                <i class="bi bi-info-circle me-1"></i>
+                                <?php echo number_format($totalZones); ?> zones managed
                             </small>
                         </div>
                     </div>
@@ -195,7 +195,7 @@ $pageTitle = 'Dashboard';
                             </div>
                         </div>
                         <div class="card-body">
-                            <p class="card-text text-muted text-center">Secure your domains with DNSSEC key management.</p>
+                            <p class="card-text text-muted text-center">Secure your zones with DNSSEC key management.</p>
                             <div class="row g-2">
                                 <div class="col-12">
                                     <a href="?page=dnssec_manage" class="btn btn-outline-primary btn-sm w-100">
@@ -217,7 +217,7 @@ $pageTitle = 'Dashboard';
                         <div class="card-footer bg-light text-center">
                             <small class="text-muted">
                                 <i class="bi bi-shield-check me-1"></i>
-                                <?php echo number_format($dnssecDomains); ?> domains secured
+                                <?php echo number_format($dnssecZones); ?> zones secured
                             </small>
                         </div>
                     </div>
@@ -287,7 +287,7 @@ $pageTitle = 'Dashboard';
                             <h6 class="mb-0 text-white">
                                 <i class="bi bi-rocket me-2"></i>Phase 1 Complete - Ready for DNS Management!
                             </h6>
-                            <small class="text-light">Authentication ✓ | Dashboard ✓ | Sessions ✓ | Next: Domain & Record Management</small>
+                            <small class="text-light">Authentication ✓ | Dashboard ✓ | Sessions ✓ | Next: Zone & Record Management</small>
                         </div>
                     </div>
                 `;

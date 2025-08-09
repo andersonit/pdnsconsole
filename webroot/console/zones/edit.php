@@ -1,6 +1,6 @@
 <?php
 /**
- * PDNS Console - Edit Domain
+ * PDNS Console - Edit Zone
  */
 
 // Get classes (currentUser is already set by index.php)
@@ -13,7 +13,7 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 // Get domain ID
 $domainId = intval($_GET['id'] ?? 0);
 if (empty($domainId)) {
-    header('Location: ?page=domains');
+    header('Location: ?page=zones');
     exit;
 }
 
@@ -37,10 +37,10 @@ try {
     
     $domainInfo = $domain->getDomainById($domainId, $tenantId);
     if (!$domainInfo) {
-        $error = 'Domain not found or access denied.';
+        $error = 'Zone not found or access denied.';
     }
 } catch (Exception $e) {
-    $error = 'Error loading domain: ' . $e->getMessage();
+    $error = 'Error loading zone: ' . $e->getMessage();
 }
 
 // Get all tenants for super admin
@@ -137,12 +137,12 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
             <!-- Page Header -->
             <div class="mb-4">
                 <div class="d-flex align-items-center mb-2">
-                    <a href="?page=domains" class="btn btn-outline-secondary btn-sm me-3">
+                    <a href="?page=zones" class="btn btn-outline-secondary btn-sm me-3">
                         <i class="bi bi-arrow-left"></i>
                     </a>
                     <h2 class="h4 mb-0">
                         <i class="bi bi-pencil me-2 text-primary"></i>
-                        Edit Domain
+                        Edit Zone
                     </h2>
                 </div>
                 <?php if ($domainInfo): ?>
@@ -160,9 +160,9 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                 
                 <?php if (!$domainInfo): ?>
                     <div class="text-center">
-                        <a href="?page=domains" class="btn btn-primary">
+                        <a href="?page=zones" class="btn btn-primary">
                             <i class="bi bi-arrow-left me-1"></i>
-                            Back to Domains
+                            Back to Zones
                         </a>
                     </div>
                 <?php endif; ?>
@@ -176,12 +176,12 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
             <?php endif; ?>
 
             <?php if ($domainInfo): ?>
-                <!-- Domain Edit Form -->
+                <!-- Zone Edit Form -->
                 <div class="card">
                     <div class="card-header">
                         <h5 class="card-title mb-0">
                             <i class="bi bi-gear me-2"></i>
-                            Domain Settings
+                            Zone Settings
                         </h5>
                     </div>
                     <div class="card-body">
@@ -189,11 +189,11 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
-                                        <label class="form-label">Domain Name</label>
+                                        <label class="form-label">Zone Name</label>
                                         <input type="text" class="form-control" 
                                                value="<?php echo htmlspecialchars($domainInfo['name']); ?>" 
                                                readonly>
-                                        <div class="form-text">Domain name cannot be changed after creation</div>
+                                        <div class="form-text">Zone name cannot be changed after creation</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -234,14 +234,14 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <div class="form-text">Assign domain to a tenant organization</div>
+                                    <div class="form-text">Assign zone to a tenant organization</div>
                                 </div>
                             <?php endif; ?>
 
                             <div class="d-flex justify-content-between">
-                                <a href="?page=domains" class="btn btn-secondary">
+                                <a href="?page=zones" class="btn btn-secondary">
                                     <i class="bi bi-arrow-left me-1"></i>
-                                    Back to Domains
+                                    Back to Zones
                                 </a>
                                 <div>
                                     <a href="?page=records&domain_id=<?php echo $domainInfo['id']; ?>" 
@@ -352,7 +352,7 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" action="?page=domain_delete" class="d-inline">
+                <form method="POST" action="?page=zone_delete" class="d-inline">
                     <input type="hidden" name="domain_id" id="deleteDomainId">
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash me-1"></i>

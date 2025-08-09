@@ -16,8 +16,8 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 $domainId = intval($_GET['domain_id'] ?? 0);
 $recordId = intval($_GET['id'] ?? 0);
 
-if (empty($domainId) || empty($recordId)) {
-    header('Location: ?page=domains');
+if (empty($domainId)) {
+    header('Location: ?page=zones');
     exit;
 }
 
@@ -39,7 +39,7 @@ $domainInfo = null;
 try {
     $domainInfo = $domain->getDomainById($domainId, $tenantId);
     if (!$domainInfo) {
-        $error = 'Domain not found or access denied.';
+        $error = 'Zone not found or access denied.';
     }
 } catch (Exception $e) {
     $error = 'Error loading domain: ' . $e->getMessage();

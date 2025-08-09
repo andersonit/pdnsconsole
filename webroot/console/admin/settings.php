@@ -14,7 +14,7 @@ if (!$user->isSuperAdmin($currentUser['id'])) {
     exit;
 }
 
-$pageTitle = 'DNS Settings';
+$pageTitle = 'System Settings';
 $branding = $settings->getBranding();
 $db = Database::getInstance();
 $message = '';
@@ -125,7 +125,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'session_timeout' => intval($_POST['session_timeout'] ?? 3600),
                 'max_login_attempts' => intval($_POST['max_login_attempts'] ?? 5),
                 'default_tenant_domains' => intval($_POST['default_tenant_domains'] ?? 0),
-                'records_per_page' => intval($_POST['records_per_page'] ?? 25)
+                'records_per_page' => intval($_POST['records_per_page'] ?? 25),
+                'timezone' => trim($_POST['timezone'] ?? 'UTC'),
+                'max_upload_size' => intval($_POST['max_upload_size'] ?? 5242880),
+                'allowed_logo_types' => trim($_POST['allowed_logo_types'] ?? 'image/jpeg,image/png,image/gif')
             ];
             
             // Validate values
@@ -137,8 +140,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Max login attempts must be at least 1.');
             }
             
-            if ($systemSettings['records_per_page'] < 5 || $systemSettings['records_per_page'] > 100) {
-                throw new Exception('Records per page must be between 5 and 100.');
+            if (!in_array($systemSettings['records_per_page'], [10, 25, 50, 100])) {
+                throw new Exception('Records per page must be 10, 25, 50, or 100.');
+            }
+            
+            // Validate timezone
+            if (!in_array($systemSettings['timezone'], timezone_identifiers_list())) {
+                throw new Exception('Invalid timezone selected.');
+            }
+            
+            // Validate upload size (minimum 1MB, maximum 50MB)
+            if ($systemSettings['max_upload_size'] < 1048576 || $systemSettings['max_upload_size'] > 52428800) {
+                throw new Exception('Max upload size must be between 1MB and 50MB.');
+            }
+            
+            // Validate allowed logo types
+            $allowedTypes = explode(',', $systemSettings['allowed_logo_types']);
+            $validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
+            foreach ($allowedTypes as $type) {
+                $type = trim($type);
+                if (!in_array($type, $validTypes)) {
+                    throw new Exception('Invalid file type: ' . $type . '. Allowed types: ' . implode(', ', $validTypes));
+                }
             }
             
             // Update all system settings
@@ -151,6 +174,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $message = 'System settings updated successfully.';
             $messageType = 'success';
+        }
+        
+        if ($action === 'update_email_settings') {
+            $emailSettings = [
+                'smtp_host' => trim($_POST['smtp_host'] ?? ''),
+                'smtp_port' => intval($_POST['smtp_port'] ?? 587),
+                'smtp_secure' => trim($_POST['smtp_secure'] ?? 'starttls'),
+                'smtp_username' => trim($_POST['smtp_username'] ?? ''),
+                'smtp_password' => trim($_POST['smtp_password'] ?? ''),
+                'smtp_from_email' => trim($_POST['smtp_from_email'] ?? ''),
+                'smtp_from_name' => trim($_POST['smtp_from_name'] ?? '')
+            ];
+            
+            // Validate required fields
+            if (empty($emailSettings['smtp_host'])) {
+                throw new Exception('SMTP host is required.');
+            }
+            
+            if ($emailSettings['smtp_port'] < 1 || $emailSettings['smtp_port'] > 65535) {
+                throw new Exception('SMTP port must be between 1 and 65535.');
+            }
+            
+            if (!in_array($emailSettings['smtp_secure'], ['starttls', 'tls', 'ssl', ''])) {
+                throw new Exception('Invalid SMTP security type.');
+            }
+            
+            if (empty($emailSettings['smtp_from_email']) || !filter_var($emailSettings['smtp_from_email'], FILTER_VALIDATE_EMAIL)) {
+                throw new Exception('Valid from email address is required.');
+            }
+            
+            if (empty($emailSettings['smtp_from_name'])) {
+                throw new Exception('From name is required.');
+            }
+            
+            // Update all email settings using the Settings class
+            $result = $settings->updateEmailSettings($emailSettings);
+            
+            if ($result) {
+                $message = 'Email settings updated successfully.';
+                $messageType = 'success';
+            } else {
+                throw new Exception('Failed to update email settings.');
+            }
         }
     } catch (Exception $e) {
         $message = $e->getMessage();
@@ -183,7 +249,7 @@ for ($i = 2; $i < count($nameservers); $i++) {
 
 // Get current system settings
 $systemSettings = [];
-$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page'];
+$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types'];
 
 foreach ($systemKeys as $key) {
     $setting = $db->fetch(
@@ -192,6 +258,9 @@ foreach ($systemKeys as $key) {
     );
     $systemSettings[$key] = $setting['setting_value'] ?? '';
 }
+
+// Get current email settings
+$emailSettings = $settings->getEmailSettings();
 
 include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
@@ -204,9 +273,9 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 <div>
                     <h1 class="h3 mb-0">
                         <i class="bi bi-gear-fill me-2"></i>
-                        DNS Settings
+                        System Settings
                     </h1>
-                    <p class="text-muted mb-0">Configure global DNS defaults and system settings</p>
+                    <p class="text-muted mb-0">Configure global DNS defaults, email settings, and system preferences</p>
                 </div>
                 <div>
                     <a href="?page=admin_dashboard" class="btn btn-outline-secondary">
@@ -380,16 +449,177 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         </div>
                         
                         <div class="mb-3">
-                            <label for="records_per_page" class="form-label">Records Per Page</label>
-                            <input type="number" class="form-control" id="records_per_page" name="records_per_page" 
-                                   value="<?php echo htmlspecialchars($systemSettings['records_per_page']); ?>" min="5" max="100" required>
-                            <small class="text-muted">Number of records to display per page (5-100)</small>
+                            <label for="records_per_page" class="form-label">Default Records Per Page</label>
+                            <select class="form-select" id="records_per_page" name="records_per_page" required>
+                                <option value="10"<?php echo $systemSettings['records_per_page'] == '10' ? ' selected' : ''; ?>>10 records</option>
+                                <option value="25"<?php echo $systemSettings['records_per_page'] == '25' ? ' selected' : ''; ?>>25 records</option>
+                                <option value="50"<?php echo $systemSettings['records_per_page'] == '50' ? ' selected' : ''; ?>>50 records</option>
+                                <option value="100"<?php echo $systemSettings['records_per_page'] == '100' ? ' selected' : ''; ?>>100 records</option>
+                            </select>
+                            <small class="text-muted">Number of records to display per page in tables</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="timezone" class="form-label">System Timezone</label>
+                            <select class="form-select" id="timezone" name="timezone" required>
+                                <optgroup label="Common Timezones">
+                                    <option value="UTC"<?php echo $systemSettings['timezone'] === 'UTC' ? ' selected' : ''; ?>>UTC (Coordinated Universal Time)</option>
+                                    <option value="America/New_York"<?php echo $systemSettings['timezone'] === 'America/New_York' ? ' selected' : ''; ?>>Eastern Time (US)</option>
+                                    <option value="America/Chicago"<?php echo $systemSettings['timezone'] === 'America/Chicago' ? ' selected' : ''; ?>>Central Time (US)</option>
+                                    <option value="America/Denver"<?php echo $systemSettings['timezone'] === 'America/Denver' ? ' selected' : ''; ?>>Mountain Time (US)</option>
+                                    <option value="America/Los_Angeles"<?php echo $systemSettings['timezone'] === 'America/Los_Angeles' ? ' selected' : ''; ?>>Pacific Time (US)</option>
+                                    <option value="Europe/London"<?php echo $systemSettings['timezone'] === 'Europe/London' ? ' selected' : ''; ?>>London (GMT/BST)</option>
+                                    <option value="Europe/Paris"<?php echo $systemSettings['timezone'] === 'Europe/Paris' ? ' selected' : ''; ?>>Central European Time</option>
+                                    <option value="Asia/Tokyo"<?php echo $systemSettings['timezone'] === 'Asia/Tokyo' ? ' selected' : ''; ?>>Japan Standard Time</option>
+                                    <option value="Australia/Sydney"<?php echo $systemSettings['timezone'] === 'Australia/Sydney' ? ' selected' : ''; ?>>Australian Eastern Time</option>
+                                </optgroup>
+                                <optgroup label="All Timezones">
+                                    <?php 
+                                    $timezones = timezone_identifiers_list();
+                                    $commonZones = ['UTC', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'Europe/London', 'Europe/Paris', 'Asia/Tokyo', 'Australia/Sydney'];
+                                    foreach ($timezones as $tz) {
+                                        if (!in_array($tz, $commonZones)) {
+                                            $selected = $systemSettings['timezone'] === $tz ? ' selected' : '';
+                                            echo "<option value=\"{$tz}\"{$selected}>{$tz}</option>";
+                                        }
+                                    }
+                                    ?>
+                                </optgroup>
+                            </select>
+                            <small class="text-muted">Timezone used for displaying dates and times</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="max_upload_size" class="form-label">Max Upload Size (bytes)</label>
+                            <select class="form-select" id="max_upload_size" name="max_upload_size" required>
+                                <option value="1048576"<?php echo $systemSettings['max_upload_size'] == '1048576' ? ' selected' : ''; ?>>1 MB</option>
+                                <option value="2097152"<?php echo $systemSettings['max_upload_size'] == '2097152' ? ' selected' : ''; ?>>2 MB</option>
+                                <option value="5242880"<?php echo $systemSettings['max_upload_size'] == '5242880' ? ' selected' : ''; ?>>5 MB</option>
+                                <option value="10485760"<?php echo $systemSettings['max_upload_size'] == '10485760' ? ' selected' : ''; ?>>10 MB</option>
+                                <option value="20971520"<?php echo $systemSettings['max_upload_size'] == '20971520' ? ' selected' : ''; ?>>20 MB</option>
+                                <option value="52428800"<?php echo $systemSettings['max_upload_size'] == '52428800' ? ' selected' : ''; ?>>50 MB</option>
+                            </select>
+                            <small class="text-muted">Maximum file size for logo uploads</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="allowed_logo_types" class="form-label">Allowed Logo File Types</label>
+                            <div class="row">
+                                <div class="col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="type_jpeg" value="image/jpeg" <?php echo strpos($systemSettings['allowed_logo_types'], 'image/jpeg') !== false ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="type_jpeg">JPEG (.jpg, .jpeg)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="type_png" value="image/png" <?php echo strpos($systemSettings['allowed_logo_types'], 'image/png') !== false ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="type_png">PNG (.png)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="type_gif" value="image/gif" <?php echo strpos($systemSettings['allowed_logo_types'], 'image/gif') !== false ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="type_gif">GIF (.gif)</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="type_webp" value="image/webp" <?php echo strpos($systemSettings['allowed_logo_types'], 'image/webp') !== false ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="type_webp">WebP (.webp)</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="type_svg" value="image/svg+xml" <?php echo strpos($systemSettings['allowed_logo_types'], 'image/svg+xml') !== false ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="type_svg">SVG (.svg)</label>
+                                    </div>
+                                </div>
+                            </div>
+                            <input type="hidden" id="allowed_logo_types" name="allowed_logo_types" value="<?php echo htmlspecialchars($systemSettings['allowed_logo_types']); ?>">
+                            <small class="text-muted">Select which file types are allowed for logo uploads</small>
                         </div>
                         
                         <div class="d-grid">
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check-lg me-1"></i>
                                 Update System Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Email Settings -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-transparent border-0">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-envelope me-2"></i>
+                        Email Settings
+                    </h6>
+                    <small class="text-muted">SMTP configuration for password reset and system emails</small>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <input type="hidden" name="action" value="update_email_settings">
+                        
+                        <div class="mb-3">
+                            <label for="smtp_host" class="form-label">SMTP Host *</label>
+                            <input type="text" class="form-control" id="smtp_host" name="smtp_host" 
+                                   value="<?php echo htmlspecialchars($emailSettings['smtp_host']); ?>" required>
+                            <small class="text-muted">SMTP server hostname (e.g., smtp.gmail.com)</small>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="smtp_port" class="form-label">SMTP Port *</label>
+                                    <input type="number" class="form-control" id="smtp_port" name="smtp_port" 
+                                           value="<?php echo htmlspecialchars($emailSettings['smtp_port']); ?>" min="1" max="65535" required>
+                                    <small class="text-muted">587 (TLS) or 465 (SSL)</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="smtp_secure" class="form-label">Security *</label>
+                                    <select class="form-select" id="smtp_secure" name="smtp_secure" required>
+                                        <option value="starttls"<?php echo $emailSettings['smtp_secure'] === 'starttls' ? ' selected' : ''; ?>>STARTTLS (recommended)</option>
+                                        <option value="tls"<?php echo $emailSettings['smtp_secure'] === 'tls' ? ' selected' : ''; ?>>TLS</option>
+                                        <option value="ssl"<?php echo $emailSettings['smtp_secure'] === 'ssl' ? ' selected' : ''; ?>>SSL</option>
+                                        <option value=""<?php echo $emailSettings['smtp_secure'] === '' ? ' selected' : ''; ?>>None</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="smtp_username" class="form-label">SMTP Username</label>
+                            <input type="text" class="form-control" id="smtp_username" name="smtp_username" 
+                                   value="<?php echo htmlspecialchars($emailSettings['smtp_username']); ?>">
+                            <small class="text-muted">Leave blank if no authentication required</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="smtp_password" class="form-label">SMTP Password</label>
+                            <input type="password" class="form-control" id="smtp_password" name="smtp_password" 
+                                   value="<?php echo htmlspecialchars($emailSettings['smtp_password']); ?>">
+                            <small class="text-muted">Leave blank to keep current password</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="smtp_from_email" class="form-label">From Email Address *</label>
+                            <input type="email" class="form-control" id="smtp_from_email" name="smtp_from_email" 
+                                   value="<?php echo htmlspecialchars($emailSettings['smtp_from_email']); ?>" required>
+                            <small class="text-muted">Email address that system emails will be sent from</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="smtp_from_name" class="form-label">From Name *</label>
+                            <input type="text" class="form-control" id="smtp_from_name" name="smtp_from_name" 
+                                   value="<?php echo htmlspecialchars($emailSettings['smtp_from_name']); ?>" required>
+                            <small class="text-muted">Name that will appear in the "From" field</small>
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-check-lg me-1"></i>
+                                Update Email Settings
                             </button>
                         </div>
                     </form>
@@ -410,7 +640,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <h6 class="text-muted mb-3">DNS Configuration</h6>
                             <dl class="row">
                                 <dt class="col-sm-5">Primary NS:</dt>
@@ -426,7 +656,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <dd class="col-sm-7"><?php echo number_format($dnsSettings['default_ttl']); ?> seconds</dd>
                             </dl>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <h6 class="text-muted mb-3">System Settings</h6>
                             <dl class="row">
                                 <dt class="col-sm-6">Session Timeout:</dt>
@@ -435,11 +665,33 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <dt class="col-sm-6">Max Login Attempts:</dt>
                                 <dd class="col-sm-6"><?php echo $systemSettings['max_login_attempts']; ?></dd>
                                 
-                                <dt class="col-sm-6">Default Domain Limit:</dt>
-                                <dd class="col-sm-6"><?php echo $systemSettings['default_tenant_domains'] == 0 ? 'Unlimited' : number_format($systemSettings['default_tenant_domains']); ?></dd>
-                                
-                                <dt class="col-sm-6">Records Per Page:</dt>
+                                <dt class="col-sm-6">Default Records Per Page:</dt>
                                 <dd class="col-sm-6"><?php echo $systemSettings['records_per_page']; ?></dd>
+                                
+                                <dt class="col-sm-6">Timezone:</dt>
+                                <dd class="col-sm-6"><?php echo htmlspecialchars($systemSettings['timezone']); ?></dd>
+                                
+                                <dt class="col-sm-6">Max Upload Size:</dt>
+                                <dd class="col-sm-6"><?php echo round($systemSettings['max_upload_size'] / 1048576, 1); ?> MB</dd>
+                                
+                                <dt class="col-sm-6">Domain Limit:</dt>
+                                <dd class="col-sm-6"><?php echo $systemSettings['default_tenant_domains'] == 0 ? 'Unlimited' : number_format($systemSettings['default_tenant_domains']); ?></dd>
+                            </dl>
+                        </div>
+                        <div class="col-md-4">
+                            <h6 class="text-muted mb-3">Email Settings</h6>
+                            <dl class="row">
+                                <dt class="col-sm-6">SMTP Host:</dt>
+                                <dd class="col-sm-6"><code><?php echo htmlspecialchars($emailSettings['smtp_host']); ?></code></dd>
+                                
+                                <dt class="col-sm-6">SMTP Port:</dt>
+                                <dd class="col-sm-6"><?php echo $emailSettings['smtp_port']; ?></dd>
+                                
+                                <dt class="col-sm-6">Security:</dt>
+                                <dd class="col-sm-6"><?php echo ucfirst($emailSettings['smtp_secure'] ?: 'None'); ?></dd>
+                                
+                                <dt class="col-sm-6">From Email:</dt>
+                                <dd class="col-sm-6"><code><?php echo htmlspecialchars($emailSettings['smtp_from_email']); ?></code></dd>
                             </dl>
                         </div>
                     </div>
@@ -502,6 +754,24 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 3000);
         }
     });
+    
+    // Handle logo type checkboxes
+    const logoTypeCheckboxes = document.querySelectorAll('input[type="checkbox"][value^="image/"]');
+    const hiddenLogoTypesInput = document.getElementById('allowed_logo_types');
+    
+    function updateLogoTypes() {
+        const selectedTypes = Array.from(logoTypeCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.value);
+        hiddenLogoTypesInput.value = selectedTypes.join(',');
+    }
+    
+    logoTypeCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', updateLogoTypes);
+    });
+    
+    // Initialize the hidden field on page load
+    updateLogoTypes();
 });
 </script>
 

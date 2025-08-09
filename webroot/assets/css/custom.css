@@ -93,11 +93,6 @@
     opacity: 1;
 }
 
-/* Table enhancements */
-.table-hover tbody tr:hover {
-    background-color: rgba(0, 0, 0, 0.025);
-}
-
 /* Remove button enhancements to let theme control styling */
 /* No custom button styling - let Bootstrap handle it */
 
@@ -278,16 +273,6 @@ footer {
 
 /* ===== THEME-FRIENDLY ENHANCEMENTS ===== */
 
-/* Theme-friendly card hover effects */
-.hover-lift {
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-}
-
-.hover-lift:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 0.75rem 1.5rem rgba(0, 0, 0, 0.15) !important;
-}
-
 /* Let themes control card styling completely */
 /* Remove all card-header and card-footer styling */
 
@@ -297,11 +282,6 @@ footer {
 .list-group-item {
     border-left: none;
     border-right: none;
-    transition: background-color 0.2s ease;
-}
-
-.list-group-item:hover {
-    background-color: var(--bs-gray-100, rgba(0, 0, 0, 0.02));
 }
 
 .list-group-item:first-child {
@@ -396,6 +376,14 @@ footer {
     }
 }
 
+/* Disable hover-lift effects for all screen sizes */
+.hover-lift,
+.hover-lift:hover {
+    transform: none !important;
+    transition: none !important;
+    box-shadow: inherit !important;
+}
+
 /* ===== ALERT & NOTIFICATION STYLES ===== */
 
 /* Alert positioning for theme switcher notifications */
@@ -430,7 +418,7 @@ footer {
 
 /* Login page specific styling */
 body.login-page {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #667eea 0%, #0d0483 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -627,4 +615,18 @@ body.dark-mode {
 .dark-mode.login-page .footer-text {
     color: #a0aec0 !important;
     border-top-color: #4a5568 !important;
+}
+
+/* Target only layout-shifting hover effects */
+
+/* Specific fix for Search and Filters card shifting issue */
+.card.mb-4:hover {
+    transform: none !important;
+    margin-bottom: 1.5rem !important; /* Force consistent bottom margin */
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important; /* Consistent shadow */
+}
+
+/* Ensure the search card doesn't change dimensions on hover */
+.card.mb-4 {
+    margin-bottom: 1.5rem !important; /* Force consistent bottom margin */
 }

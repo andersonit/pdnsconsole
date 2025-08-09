@@ -174,7 +174,7 @@ CREATE TABLE global_settings (
     setting_key VARCHAR(100) NOT NULL UNIQUE,
     setting_value TEXT,
     description TEXT,
-    category ENUM('branding', 'dns', 'security', 'system', 'licensing') DEFAULT 'system',
+    category ENUM('branding', 'dns', 'security', 'system', 'licensing', 'email') DEFAULT 'system',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_key (setting_key),
     INDEX idx_category (category)
@@ -341,7 +341,27 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('commercial_license_price', '50', 'Price for commercial license in USD', 'licensing'),
 ('license_enforcement', '1', 'Enable/disable license enforcement (1=enabled, 0=disabled)', 'licensing'),
 ('trial_period_days', '30', 'Trial period for commercial features in days', 'licensing'),
-('license_key_length', '32', 'Length of generated license keys', 'licensing');
+('license_key_length', '32', 'Length of generated license keys', 'licensing'),
+
+-- Email/SMTP settings
+('smtp_host', 'smtp.example.com', 'SMTP server hostname', 'email'),
+('smtp_port', '587', 'SMTP server port (587 for TLS, 465 for SSL, 25 for no encryption)', 'email'),
+('smtp_secure', 'starttls', 'SMTP encryption type (tls, ssl, or empty for none)', 'email'),
+('smtp_username', '', 'SMTP authentication username', 'email'),
+('smtp_password', '', 'SMTP authentication password (encrypted)', 'email'),
+('smtp_from_email', 'noreply@example.com', 'From email address for system emails', 'email'),
+('smtp_from_name', 'PDNS Console', 'From name for system emails', 'email'),
+
+-- File upload settings
+('max_upload_size', '5242880', 'Maximum file upload size in bytes (5MB)', 'system'),
+('allowed_logo_types', 'image/jpeg,image/png,image/gif', 'Allowed logo file MIME types', 'system'),
+
+-- Pagination settings
+('default_records_per_page', '25', 'Default number of records per page', 'system'),
+('max_records_per_page', '100', 'Maximum number of records per page', 'system'),
+
+-- System settings
+('timezone', 'UTC', 'System timezone', 'system');
 
 -- Initial custom record types
 INSERT INTO custom_record_types (type_name, description, validation_pattern, is_active) VALUES

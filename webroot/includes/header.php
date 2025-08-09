@@ -332,6 +332,17 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
                     <li><a class="dropdown-item" href="?page=admin_audit">
                         <i class="bi bi-clipboard-data me-2"></i>Audit Logs
                     </a></li>
+                    <?php else: ?>
+                    <?php 
+                    // Check if user has tenant access (non-super admin with tenant assignments)
+                    $userTenants = $user->getUserTenants($currentUser['id']);
+                    if (!empty($userTenants)): 
+                    ?>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="?page=admin_tenants">
+                        <i class="bi bi-building-gear me-2"></i>Tenant Management
+                    </a></li>
+                    <?php endif; ?>
                     <?php endif; ?>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item text-danger" href="?page=logout">

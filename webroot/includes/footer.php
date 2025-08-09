@@ -1,3 +1,7 @@
+<?php
+// Include Settings class for footer branding
+require_once __DIR__ . '/../classes/Settings.php';
+?>
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
@@ -95,7 +99,17 @@
                 <div class="col-md-6">
                     <small class="text-light">
                         <i class="bi bi-c-circle me-1"></i>
-                        © 2025 PDNS Console. All rights reserved.
+                        <?php 
+                        // Get footer text from branding settings
+                        if (isset($branding) && !empty($branding['footer_text'])) {
+                            echo htmlspecialchars($branding['footer_text']);
+                        } else {
+                            // Fallback if branding not available
+                            $footerSettings = new Settings();
+                            $footerBranding = $footerSettings->getBranding();
+                            echo htmlspecialchars($footerBranding['footer_text']);
+                        }
+                        ?>
                     </small>
                 </div>
                 <div class="col-md-6 text-end">

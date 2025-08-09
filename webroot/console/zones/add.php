@@ -1,6 +1,6 @@
 <?php
 /**
- * PDNS Console - Add Domain
+ * PDNS Console - Add Zone
  */
 
 // Get classes (currentUser is already set by index.php)
@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($error)) {
         // Validate inputs based on zone type
         if ($zoneType === 'forward') {
             if (empty($domainName)) {
-                throw new Exception('Domain name is required for forward zones.');
+                throw new Exception('Zone name is required for forward zones.');
             }
             $finalDomainName = $domainName;
         } else {
@@ -141,7 +141,7 @@ $pageTitle = 'Add DNS Zone';
             <!-- Page Header -->
                 <div class="mb-4">
                 <div class="d-flex align-items-center mb-2">
-                    <a href="?page=domains" class="btn btn-outline-secondary btn-sm me-3">
+                    <a href="?page=zones" class="btn btn-outline-secondary btn-sm me-3">
                         <i class="bi bi-arrow-left"></i>
                     </a>
                     <h2 class="h4 mb-0">
@@ -150,7 +150,7 @@ $pageTitle = 'Add DNS Zone';
                     </h2>
                 </div>
                 <p class="text-muted mb-0">
-                    Create a new forward DNS domain or reverse DNS zone with automatic record generation
+                    Create a new forward DNS zone or reverse DNS zone with automatic record generation
                 </p>
             </div>            <?php if (isset($error)): ?>
                 <div class="alert alert-danger">
@@ -222,7 +222,7 @@ $pageTitle = 'Add DNS Zone';
                                     <div class="col-md-8">
                                         <div class="mb-3">
                                             <label for="domain_name" class="form-label">
-                                                Domain Name <span class="text-danger">*</span>
+                                                Zone Name <span class="text-danger">*</span>
                                             </label>
                                             <input type="text" 
                                                    class="form-control form-control-lg" 
@@ -231,13 +231,13 @@ $pageTitle = 'Add DNS Zone';
                                                    placeholder="example.com"
                                                    value="<?php echo htmlspecialchars($_POST['domain_name'] ?? ''); ?>">
                                             <div class="form-text">
-                                                Enter the domain name without protocol (e.g., example.com, subdomain.example.com)
+                                                Enter the zone name without protocol (e.g., example.com, subdomain.example.com)
                                             </div>
                                         </div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="mb-3">
-                                            <label for="domain_type" class="form-label">Domain Type</label>
+                                            <label for="domain_type" class="form-label">Zone Type</label>
                                             <select class="form-select" id="domain_type" name="domain_type">
                                                 <?php
                                                 $types = ['NATIVE' => 'Native', 'MASTER' => 'Master', 'SLAVE' => 'Slave'];
@@ -347,9 +347,9 @@ $pageTitle = 'Add DNS Zone';
                             </div>
 
                             <div class="d-flex justify-content-between">
-                                <a href="?page=domains" class="btn btn-secondary">
+                                <a href="?page=zones" class="btn btn-secondary">
                                     <i class="bi bi-arrow-left me-1"></i>
-                                    Back to Domains
+                                    Back to Zones
                                 </a>
                                 <button type="submit" class="btn btn-primary">
                                     <i class="bi bi-plus-circle me-1"></i>

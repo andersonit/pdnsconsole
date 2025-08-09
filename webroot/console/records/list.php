@@ -14,7 +14,7 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 // Get domain ID
 $domainId = intval($_GET['domain_id'] ?? 0);
 if (empty($domainId)) {
-    header('Location: ?page=domains');
+    header('Location: ?page=zone_manage');
     exit;
 }
 
@@ -139,7 +139,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
     <!-- Page Header -->
     <div class="mb-4">
         <div class="d-flex align-items-center mb-2">
-            <a href="?page=domains" class="btn btn-outline-secondary btn-sm me-3">
+            <a href="?page=zone_manage" class="btn btn-outline-secondary btn-sm me-3">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <h2 class="h4 mb-0">
@@ -183,9 +183,9 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
         
         <?php if (!$domainInfo): ?>
             <div class="text-center">
-                <a href="?page=domains" class="btn btn-primary">
+                <a href="?page=zone_manage" class="btn btn-primary">
                     <i class="bi bi-arrow-left me-1"></i>
-                    Back to Domains
+                    Back to Zone Management
                 </a>
             </div>
         <?php endif; ?>
@@ -329,7 +329,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                 </div>
             <?php else: ?>
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th>
@@ -367,7 +367,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                         <tbody>
                             <?php foreach ($recordsList as $record): ?>
                                 <?php $isSystemRecord = in_array($record['type'], ['SOA', 'NS']); ?>
-                                <tr <?php echo $isSystemRecord ? 'class="table-warning"' : ''; ?>>
+                                <tr>
                                     <td>
                                         <div class="fw-medium text-break">
                                             <?php echo htmlspecialchars($record['name']); ?>
@@ -379,7 +379,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                         </div>
                                     </td>
                                     <td>
-                                        <span class="badge <?php echo $isSystemRecord ? 'bg-warning text-dark' : 'bg-secondary'; ?>">
+                                        <span class="badge <?php echo $isSystemRecord ? 'bg-secondary' : 'bg-secondary'; ?>">
                                             <?php echo htmlspecialchars($record['type']); ?>
                                         </span>
                                     </td>
@@ -407,17 +407,27 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                     <td>
                                         <div class="btn-group btn-group-sm">
                                             <?php if ($isSystemRecord): ?>
-                                                <span class="btn btn-outline-secondary disabled" title="System records cannot be modified">
-                                                    <i class="bi bi-lock"></i>
-                                                </span>
+                                                <div title="Change in System Settings" 
+                                                     data-bs-toggle="tooltip" 
+                                                     data-bs-placement="top"
+                                                     style="display: inline-block;">
+                                                    <button type="button" class="btn btn-outline-secondary btn-sm" disabled>
+                                                        <i class="bi bi-lock"></i>
+                                                    </button>
+                                                </div>
                                             <?php else: ?>
                                                 <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=edit&id=<?php echo $record['id']; ?>" 
-                                                   class="btn btn-outline-primary" title="Edit Record">
+                                                   class="btn btn-outline-primary btn-sm" 
+                                                   title="Edit Record"
+                                                   data-bs-toggle="tooltip" 
+                                                   data-bs-placement="top">
                                                     <i class="bi bi-pencil"></i>
                                                 </a>
-                                                <button type="button" class="btn btn-outline-danger" 
+                                                <button type="button" class="btn btn-outline-danger btn-sm" 
                                                         onclick="confirmDelete(<?php echo $record['id']; ?>, '<?php echo htmlspecialchars($record['name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($record['type'], ENT_QUOTES); ?>')"
-                                                        title="Delete Record">
+                                                        title="Delete Record"
+                                                        data-bs-toggle="tooltip" 
+                                                        data-bs-placement="top">
                                                     <i class="bi bi-trash"></i>
                                                 </button>
                                             <?php endif; ?>
@@ -573,6 +583,14 @@ function confirmDelete(recordId, recordName, recordType) {
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
     modal.show();
 }
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

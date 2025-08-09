@@ -1,6 +1,6 @@
 <?php
 /**
- * PDNS Console - Delete Domain Handler
+ * PDNS Console - Delete Zone Handler
  */
 
 // Get current user and tenant info
@@ -27,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
     
     try {
         if (empty($domainId)) {
-            throw new Exception('Invalid domain ID.');
+            throw new Exception('Invalid zone ID.');
         }
         
         // For non-super admin users, pass tenant restriction
@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
         // Get domain info before deletion for logging
         $domainInfo = $domain->getDomainById($domainId, $tenantId);
         if (!$domainInfo) {
-            throw new Exception('Domain not found or access denied.');
+            throw new Exception('Zone not found or access denied.');
         }
         
         // Delete the domain
@@ -83,12 +83,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
             <!-- Page Header -->
             <div class="mb-4">
                 <div class="d-flex align-items-center mb-2">
-                    <a href="?page=domains" class="btn btn-outline-secondary btn-sm me-3">
+                    <a href="?page=zones" class="btn btn-outline-secondary btn-sm me-3">
                         <i class="bi bi-arrow-left"></i>
                     </a>
                     <h2 class="h4 mb-0">
                         <i class="bi bi-trash me-2 text-danger"></i>
-                        Delete Domain
+                        Delete Zone
                     </h2>
                 </div>
             </div>
@@ -99,9 +99,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
                     <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
                 </div>
                 <div class="text-center">
-                    <a href="?page=domains" class="btn btn-primary">
+                    <a href="?page=zones" class="btn btn-primary">
                         <i class="bi bi-arrow-left me-1"></i>
-                        Back to Domains
+                        Back to Zones
                     </a>
                 </div>
             <?php endif; ?>
@@ -115,19 +115,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
                 <div class="card">
                     <div class="card-body text-center">
                         <i class="bi bi-check-circle display-4 text-success mb-3"></i>
-                        <h5>Domain Deleted Successfully</h5>
+                        <h5>Zone Deleted Successfully</h5>
                         <p class="text-muted">
-                            The domain and all associated records have been permanently removed from the system.
+                            The zone and all associated records have been permanently removed from the system.
                         </p>
                         
                         <div class="mt-4">
-                            <a href="?page=domains" class="btn btn-primary me-2">
+                            <a href="?page=zones" class="btn btn-primary me-2">
                                 <i class="bi bi-list-ul me-1"></i>
-                                View All Domains
+                                View All Zones
                             </a>
-                            <a href="?page=domain_add" class="btn btn-outline-primary">
+                            <a href="?page=zone_add" class="btn btn-outline-primary">
                                 <i class="bi bi-plus-circle me-1"></i>
-                                Add New Domain
+                                Add New Zone
                             </a>
                         </div>
                     </div>

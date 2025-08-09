@@ -1,19 +1,22 @@
 <?php
 /**
- * PDNS Console - Tenant Management (Super Admin Only)
+ * PDNS Console - Tenant Management
  */
 
 // Get required classes
 $user = new User();
 $settings = new Settings();
 
-// Check if user is super admin
-if (!$user->isSuperAdmin($currentUser['id'])) {
+// Check if user has access (super admin or has tenant assignments)
+$isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
+$userTenants = $user->getUserTenants($currentUser['id']);
+
+if (!$isSuperAdmin && empty($userTenants)) {
     header('Location: /?page=dashboard');
     exit;
 }
 
-$pageTitle = 'Tenant Management';
+$pageTitle = $isSuperAdmin ? 'Tenant Management' : 'My Tenants';
 $branding = $settings->getBranding();
 $db = Database::getInstance();
 $message = '';
@@ -26,6 +29,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         switch ($action) {
             case 'create_tenant':
+                // Only super admins can create tenants
+                if (!$isSuperAdmin) {
+                    throw new Exception('Access denied. Only super admins can create tenants.');
+                }
+                
                 $name = trim($_POST['name'] ?? '');
                 $contactEmail = trim($_POST['contact_email'] ?? '');
                 $soaContactOverride = trim($_POST['soa_contact_override'] ?? '');
@@ -63,11 +71,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
             case 'update_tenant':
                 $tenantId = intval($_POST['tenant_id'] ?? 0);
+                
+                // Check if user has access to this tenant
+                if (!$isSuperAdmin) {
+                    $userTenantIds = array_column($userTenants, 'id');
+                    if (!in_array($tenantId, $userTenantIds)) {
+                        throw new Exception('Access denied. You can only edit your assigned tenants.');
+                    }
+                }
+                
                 $name = trim($_POST['name'] ?? '');
                 $contactEmail = trim($_POST['contact_email'] ?? '');
                 $soaContactOverride = trim($_POST['soa_contact_override'] ?? '');
                 $maxDomains = intval($_POST['max_domains'] ?? 0);
                 $isActive = isset($_POST['is_active']) ? 1 : 0;
+                
+                // Tenant admins cannot change certain fields
+                if (!$isSuperAdmin) {
+                    // For tenant admins, only allow updating contact info and SOA override
+                    // Get current tenant data to preserve other fields
+                    $currentTenant = $db->fetch("SELECT * FROM tenants WHERE id = ?", [$tenantId]);
+                    if (!$currentTenant) {
+                        throw new Exception('Tenant not found.');
+                    }
+                    
+                    $name = $currentTenant['name']; // Keep original name
+                    $maxDomains = $currentTenant['max_domains']; // Keep original limit
+                    $isActive = $currentTenant['is_active']; // Keep original status
+                }
                 
                 if (empty($name)) {
                     throw new Exception('Tenant name is required.');
@@ -100,16 +131,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
                 
             case 'delete_tenant':
+                // Only super admins can delete tenants
+                if (!$isSuperAdmin) {
+                    throw new Exception('Access denied. Only super admins can delete tenants.');
+                }
+                
                 $tenantId = intval($_POST['tenant_id'] ?? 0);
                 
-                // Check if tenant has domains
+                // Check if tenant has zones
                 $domainCount = $db->fetch(
                     "SELECT COUNT(*) as count FROM domain_tenants WHERE tenant_id = ?",
                     [$tenantId]
                 )['count'] ?? 0;
                 
                 if ($domainCount > 0) {
-                    throw new Exception('Cannot delete tenant with existing domains. Please transfer or delete domains first.');
+                    throw new Exception('Cannot delete tenant with existing zones. Please transfer or delete zones first.');
                 }
                 
                 // Check if tenant has users
@@ -134,17 +170,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get all tenants with statistics
-$tenants = $db->fetchAll(
-    "SELECT t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at, t.updated_at,
-            COUNT(DISTINCT dt.domain_id) as domain_count,
-            COUNT(DISTINCT ut.user_id) as user_count
-     FROM tenants t
-     LEFT JOIN domain_tenants dt ON t.id = dt.tenant_id
-     LEFT JOIN user_tenants ut ON t.id = ut.tenant_id
-     GROUP BY t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at, t.updated_at
-     ORDER BY t.created_at DESC"
-);
+// Get tenants with statistics
+try {
+    if ($isSuperAdmin) {
+        // Super admin sees all tenants
+        $tenants = $db->fetchAll(
+            "SELECT t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at,
+                    COUNT(DISTINCT dt.domain_id) as domain_count,
+                    COUNT(DISTINCT ut.user_id) as user_count
+             FROM tenants t
+             LEFT JOIN domain_tenants dt ON t.id = dt.tenant_id
+             LEFT JOIN user_tenants ut ON t.id = ut.tenant_id
+             GROUP BY t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at
+             ORDER BY t.created_at DESC"
+        );
+    } else {
+        // Tenant admin sees only their assigned tenants
+        $tenantIds = array_column($userTenants, 'id');
+        $placeholders = str_repeat('?,', count($tenantIds) - 1) . '?';
+        
+        $tenants = $db->fetchAll(
+            "SELECT t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at,
+                    COUNT(DISTINCT dt.domain_id) as domain_count,
+                    COUNT(DISTINCT ut.user_id) as user_count
+             FROM tenants t
+             LEFT JOIN domain_tenants dt ON t.id = dt.tenant_id
+             LEFT JOIN user_tenants ut ON t.id = ut.tenant_id
+             WHERE t.id IN ($placeholders)
+             GROUP BY t.id, t.name, t.contact_email, t.soa_contact_override, t.max_domains, t.is_active, t.created_at
+             ORDER BY t.created_at DESC",
+            $tenantIds
+        );
+    }
+} catch (Exception $e) {
+    // If junction tables don't exist, fall back to basic tenant query
+    if ($isSuperAdmin) {
+        $tenants = $db->fetchAll(
+            "SELECT id, name, contact_email, soa_contact_override, max_domains, is_active, created_at,
+                    0 as domain_count, 0 as user_count
+             FROM tenants 
+             ORDER BY created_at DESC"
+        );
+    } else {
+        $tenantIds = array_column($userTenants, 'id');
+        $placeholders = str_repeat('?,', count($tenantIds) - 1) . '?';
+        
+        $tenants = $db->fetchAll(
+            "SELECT id, name, contact_email, soa_contact_override, max_domains, is_active, created_at,
+                    0 as domain_count, 0 as user_count
+             FROM tenants 
+             WHERE id IN ($placeholders)
+             ORDER BY created_at DESC",
+            $tenantIds
+        );
+    }
+}
 
 include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
@@ -157,18 +237,20 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 <div>
                     <h1 class="h3 mb-0">
                         <i class="bi bi-building me-2"></i>
-                        Tenant Management
+                        <?= $pageTitle ?>
                     </h1>
-                    <p class="text-muted mb-0">Manage tenant organizations and domain limits</p>
+                    <p class="text-muted mb-0"><?= $isSuperAdmin ? 'Manage tenant organizations and zone limits' : 'View and manage your assigned tenants' ?></p>
                 </div>
                 <div>
-                    <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createTenantModal">
-                        <i class="bi bi-building-add me-1"></i>
-                        Create Tenant
-                    </button>
-                    <a href="?page=admin_dashboard" class="btn btn-outline-secondary">
+                    <?php if ($isSuperAdmin): ?>
+                        <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#createTenantModal">
+                            <i class="bi bi-building-add me-1"></i>
+                            Create Tenant
+                        </button>
+                    <?php endif; ?>
+                    <a href="?page=<?= $isSuperAdmin ? 'admin_dashboard' : 'zone_manage' ?>" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left me-1"></i>
-                        Back to Admin
+                        <?= $isSuperAdmin ? 'Back to Admin' : 'Back to Zones' ?>
                     </a>
                 </div>
             </div>
@@ -209,7 +291,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <div class="col-6">
                                 <div class="text-center">
                                     <div class="fs-4 fw-bold text-primary"><?php echo $tenant['domain_count']; ?></div>
-                                    <small class="text-muted">Domains</small>
+                                    <small class="text-muted">Zones</small>
                                 </div>
                             </div>
                             <div class="col-6">
@@ -221,7 +303,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         </div>
                         
                         <div class="mb-3">
-                            <small class="text-muted">Domain Limit:</small>
+                            <small class="text-muted">Zone Limit:</small>
                             <div class="fw-semibold">
                                 <?php echo $tenant['max_domains'] == 0 ? 'Unlimited' : number_format($tenant['max_domains']); ?>
                             </div>
@@ -233,6 +315,9 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                     <div class="progress-bar <?php echo $percentage >= 80 ? 'bg-warning' : 'bg-success'; ?>" 
                                          style="width: <?php echo $percentage; ?>%"></div>
                                 </div>
+                            <?php else: ?>
+                                <!-- Spacer to maintain consistent card height -->
+                                <div class="mt-2" style="height: 4px;"></div>
                             <?php endif; ?>
                         </div>
                         
@@ -244,13 +329,22 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                     Edit
                                 </button>
                             </div>
-                            <div class="col">
-                                <button type="button" class="btn btn-outline-danger btn-sm w-100"
-                                        onclick="deleteTenant(<?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>', <?php echo $tenant['domain_count']; ?>, <?php echo $tenant['user_count']; ?>)">
-                                    <i class="bi bi-trash me-1"></i>
-                                    Delete
-                                </button>
-                            </div>
+                            <?php if ($isSuperAdmin): ?>
+                                <div class="col">
+                                    <button type="button" class="btn btn-outline-danger btn-sm w-100"
+                                            onclick="deleteTenant(<?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>', <?php echo $tenant['domain_count']; ?>, <?php echo $tenant['user_count']; ?>)">
+                                        <i class="bi bi-trash me-1"></i>
+                                        Delete
+                                    </button>
+                                </div>
+                            <?php else: ?>
+                                <div class="col">
+                                    <a href="?page=zone_manage&tenant_id=<?= $tenant['id'] ?>" class="btn btn-outline-success btn-sm w-100">
+                                        <i class="bi bi-globe me-1"></i>
+                                        Manage Zones
+                                    </a>
+                                </div>
+                            <?php endif; ?>
                         </div>
                         
                         <div class="mt-3 pt-3 border-top">
@@ -302,14 +396,14 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <label for="soa_contact_override" class="form-label">SOA Contact Override</label>
                         <input type="text" class="form-control" id="soa_contact_override" name="soa_contact_override">
                         <small class="text-muted">
-                            Optional: Override global SOA contact for this tenant's domains. 
+                            Optional: Override global SOA contact for this tenant's zones. 
                             Enter as admin@example.com (will be converted) or admin.example.com
                         </small>
                     </div>
                     <div class="mb-3">
-                        <label for="max_domains" class="form-label">Domain Limit</label>
+                        <label for="max_domains" class="form-label">Zone Limit</label>
                         <input type="number" class="form-control" id="max_domains" name="max_domains" value="0" min="0">
-                        <small class="text-muted">0 = Unlimited domains</small>
+                        <small class="text-muted">0 = Unlimited zones</small>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -335,7 +429,10 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 <div class="modal-body">
                     <div class="mb-3">
                         <label for="edit_name" class="form-label">Tenant Name *</label>
-                        <input type="text" class="form-control" id="edit_name" name="name" required>
+                        <input type="text" class="form-control" id="edit_name" name="name" <?= $isSuperAdmin ? 'required' : 'readonly' ?>>
+                        <?php if (!$isSuperAdmin): ?>
+                            <small class="text-muted">Tenant name cannot be changed.</small>
+                        <?php endif; ?>
                     </div>
                     <div class="mb-3">
                         <label for="edit_contact_email" class="form-label">Contact Email</label>
@@ -345,23 +442,31 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <label for="edit_soa_contact_override" class="form-label">SOA Contact Override</label>
                         <input type="text" class="form-control" id="edit_soa_contact_override" name="soa_contact_override">
                         <small class="text-muted">
-                            Optional: Override global SOA contact for this tenant's domains. 
+                            Optional: Override global SOA contact for this tenant's zones. 
                             Enter as admin@example.com (will be converted) or admin.example.com
                         </small>
                     </div>
-                    <div class="mb-3">
-                        <label for="edit_max_domains" class="form-label">Domain Limit</label>
-                        <input type="number" class="form-control" id="edit_max_domains" name="max_domains" min="0">
-                        <small class="text-muted">0 = Unlimited domains</small>
-                    </div>
-                    <div class="mb-3">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="edit_is_active" name="is_active">
-                            <label class="form-check-label" for="edit_is_active">
-                                Active Tenant
-                            </label>
+                    <?php if ($isSuperAdmin): ?>
+                        <div class="mb-3">
+                            <label for="edit_max_domains" class="form-label">Zone Limit</label>
+                            <input type="number" class="form-control" id="edit_max_domains" name="max_domains" min="0">
+                            <small class="text-muted">0 = Unlimited zones</small>
                         </div>
-                    </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="edit_is_active" name="is_active">
+                                <label class="form-check-label" for="edit_is_active">
+                                    Active Tenant
+                                </label>
+                            </div>
+                        </div>
+                    <?php else: ?>
+                        <div class="mb-3">
+                            <label class="form-label">Zone Limit</label>
+                            <div class="form-control-plaintext" id="edit_max_domains_readonly">-</div>
+                            <small class="text-muted">Contact your administrator to change the zone limit.</small>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -406,8 +511,21 @@ function editTenant(tenantData) {
     document.getElementById('edit_name').value = tenantData.name;
     document.getElementById('edit_contact_email').value = tenantData.contact_email || '';
     document.getElementById('edit_soa_contact_override').value = tenantData.soa_contact_override || '';
-    document.getElementById('edit_max_domains').value = tenantData.max_domains;
-    document.getElementById('edit_is_active').checked = tenantData.is_active == 1;
+    
+    // Only set these fields if they exist (for super admins)
+    const maxDomainsField = document.getElementById('edit_max_domains');
+    const isActiveField = document.getElementById('edit_is_active');
+    const maxDomainsReadonly = document.getElementById('edit_max_domains_readonly');
+    
+    if (maxDomainsField) {
+        maxDomainsField.value = tenantData.max_domains;
+    }
+    if (isActiveField) {
+        isActiveField.checked = tenantData.is_active == 1;
+    }
+    if (maxDomainsReadonly) {
+        maxDomainsReadonly.textContent = tenantData.max_domains == 0 ? 'Unlimited' : tenantData.max_domains;
+    }
     
     new bootstrap.Modal(document.getElementById('editTenantModal')).show();
 }

@@ -5,6 +5,9 @@
  * Manages global settings including branding, DNS defaults, and system configuration
  */
 
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/Database.php';
+
 class Settings {
     private $db;
     private static $cache = [];
@@ -123,11 +126,44 @@ class Settings {
     public function getBranding() {
         return [
             'site_name' => $this->get('site_name', 'PDNS Console'),
-            'site_logo' => $this->get('site_logo', '/assets/img/pdns_logo.png'),
-            'company_name' => $this->get('company_name', 'PDNS Console'),
-            'footer_text' => $this->get('footer_text', 'Powered by PDNS Console'),
-            'theme_name' => $this->get('theme_name', 'default')
+            'site_logo' => $this->get('site_logo', ''),
+            'footer_text' => $this->get('footer_text', '© 2025 PDNS Console. All rights reserved.'),
+            'theme_name' => $this->get('theme_name', 'light')
         ];
+    }
+    
+    /**
+     * Update branding settings
+     */
+    public function updateBranding($settings) {
+        $allowed = ['site_name', 'site_logo', 'footer_text', 'theme_name'];
+        $updated = 0;
+        
+        foreach ($allowed as $key) {
+            if (isset($settings[$key])) {
+                $description = '';
+                switch ($key) {
+                    case 'site_name':
+                        $description = 'Site name displayed in header and titles';
+                        break;
+                    case 'site_logo':
+                        $description = 'Path to site logo image';
+                        break;
+                    case 'footer_text':
+                        $description = 'Footer text displayed on all pages';
+                        break;
+                    case 'theme_name':
+                        $description = 'Bootstrap theme name (default or bootswatch theme)';
+                        break;
+                }
+                
+                if ($this->set($key, $settings[$key], $description, 'branding')) {
+                    $updated++;
+                }
+            }
+        }
+        
+        return $updated;
     }
     
     /**
@@ -147,22 +183,56 @@ class Settings {
     }
     
     /**
-     * Get security settings
+     * Get email/SMTP settings
+     */
+    public function getEmailSettings() {
+        return [
+            'smtp_host' => $this->get('smtp_host', 'smtp.example.com'),
+            'smtp_port' => (int)$this->get('smtp_port', 587),
+            'smtp_secure' => $this->get('smtp_secure', 'tls'),
+            'smtp_username' => $this->get('smtp_username', ''),
+            'smtp_password' => $this->get('smtp_password', ''),
+            'smtp_from_email' => $this->get('smtp_from_email', 'noreply@example.com'),
+            'smtp_from_name' => $this->get('smtp_from_name', 'PDNS Console')
+        ];
+    }
+    
+    /**
+     * Update email settings
+     */
+    public function updateEmailSettings($settings) {
+        foreach ($settings as $key => $value) {
+            if (strpos($key, 'smtp_') === 0) {
+                $this->set($key, $value, null, 'email');
+            }
+        }
+        // Clear cache for email settings
+        foreach (['smtp_host', 'smtp_port', 'smtp_secure', 'smtp_username', 'smtp_password', 'smtp_from_email', 'smtp_from_name'] as $key) {
+            unset(self::$cache[$key]);
+        }
+        return true;
+    }
+    
+    /**
+     * Get system settings including file upload and pagination
+     */
+    public function getSystemSettings() {
+        return [
+            'default_tenant_domains' => (int)$this->get('default_tenant_domains', 0),
+            'records_per_page' => (int)$this->get('records_per_page', 25),
+            'max_upload_size' => (int)$this->get('max_upload_size', 5242880),
+            'allowed_logo_types' => $this->get('allowed_logo_types', 'image/jpeg,image/png,image/gif'),
+            'timezone' => $this->get('timezone', 'UTC')
+        ];
+    }
+    
+    /**
+     * Security settings
      */
     public function getSecuritySettings() {
         return [
             'session_timeout' => (int)$this->get('session_timeout', 3600),
             'max_login_attempts' => (int)$this->get('max_login_attempts', 5)
-        ];
-    }
-    
-    /**
-     * Get system settings
-     */
-    public function getSystemSettings() {
-        return [
-            'default_tenant_domains' => (int)$this->get('default_tenant_domains', 0),
-            'records_per_page' => (int)$this->get('records_per_page', 25)
         ];
     }
     
