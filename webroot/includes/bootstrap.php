@@ -21,9 +21,15 @@ session_set_save_handler($sessionHandler, true);
 
 // Configure session settings
 ini_set('session.cookie_lifetime', 0); // Session cookie expires when browser closes
-ini_set('session.cookie_secure', 1);   // HTTPS only
+// Only force secure cookies when request is actually HTTPS; prevents dev login loops on HTTP
+$isHttps = (
+	(!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+	(isset($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) ||
+	(!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower($_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https')
+);
+ini_set('session.cookie_secure', $isHttps ? '1' : '0');
 ini_set('session.cookie_httponly', 1); // No JavaScript access
-ini_set('session.cookie_samesite', 'Strict'); // CSRF protection
+ini_set('session.cookie_samesite', 'Strict'); // CSRF protection (change to Lax if external POST callbacks required)
 ini_set('session.gc_maxlifetime', 7200); // 2 hours
 ini_set('session.use_strict_mode', 1);
 
@@ -40,4 +46,18 @@ require_once __DIR__ . '/../classes/Domain.php';
 require_once __DIR__ . '/../classes/Records.php';
 require_once __DIR__ . '/../classes/Nameserver.php';
 require_once __DIR__ . '/../classes/Email.php';
+
+// Apply dynamic timezone from settings (fallback to UTC)
+try {
+	$settingsObj = new Settings();
+	$tz = $settingsObj->get('timezone', 'UTC');
+	if ($tz && in_array($tz, timezone_identifiers_list())) {
+		date_default_timezone_set($tz);
+	} else {
+		date_default_timezone_set('UTC');
+	}
+} catch (Exception $e) {
+	// Fallback silently
+	date_default_timezone_set('UTC');
+}
 ?>

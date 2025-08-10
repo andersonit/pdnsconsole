@@ -129,19 +129,23 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
 <?php include __DIR__ . '/../../includes/header.php'; ?>
 
 <div class="container-fluid py-4">
+    <?php if ($domainInfo && $recordInfo): ?>
+        <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+            renderBreadcrumb([
+                ['label' => 'Zones', 'url' => '?page=zone_manage' . ($domainInfo ? '&tenant_id=' . urlencode($domainInfo['tenant_id'] ?? '') : '')],
+                ['label' => 'Records: ' . $domainInfo['name'], 'url' => '?page=records&domain_id=' . $domainId],
+                ['label' => 'Edit Record']
+            ], $isSuperAdmin);
+        ?>
+    <?php endif; ?>
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <!-- Page Header -->
             <div class="mb-4">
-                <div class="d-flex align-items-center mb-2">
-                    <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-secondary btn-sm me-3">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                    <h2 class="h4 mb-0">
-                        <i class="bi bi-pencil me-2 text-primary"></i>
-                        Edit DNS Record
-                    </h2>
-                </div>
+                <h2 class="h4 mb-2">
+                    <i class="bi bi-pencil me-2 text-primary"></i>
+                    Edit DNS Record
+                </h2>
                 <?php if ($domainInfo && $recordInfo): ?>
                     <p class="text-muted mb-0">
                         Editing <strong class="text-primary"><?php echo htmlspecialchars($recordInfo['type']); ?></strong> record 
@@ -162,8 +166,7 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                 <?php if (!$recordInfo): ?>
                     <div class="text-center">
                         <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-primary">
-                            <i class="bi bi-arrow-left me-1"></i>
-                            Back to Records
+                            Return to Records
                         </a>
                     </div>
                 <?php endif; ?>
@@ -214,11 +217,12 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                                             </label>
                                             <select class="form-select" id="record_type" name="record_type" required>
                                                 <?php foreach ($supportedTypes as $type => $info): ?>
-                                                    <option value="<?php echo $type; ?>" 
-                                                            <?php echo $recordInfo['type'] === $type ? 'selected' : ''; ?>
-                                                            data-pattern="<?php echo htmlspecialchars($info['pattern']); ?>"
-                                                            data-example="<?php echo htmlspecialchars($info['example']); ?>"
-                                                            data-description="<?php echo htmlspecialchars($info['description']); ?>">
+                            <option value="<?php echo $type; ?>" 
+                                <?php echo $recordInfo['type'] === $type ? 'selected' : ''; ?>
+                                data-pattern="<?php echo htmlspecialchars($info['pattern']); ?>"
+                                data-regex-safe="<?php echo htmlspecialchars(trim($info['pattern'],'/')); ?>"
+                                data-example="<?php echo htmlspecialchars($info['example']); ?>"
+                                data-description="<?php echo htmlspecialchars($info['description']); ?>">
                                                         <?php echo $info['name']; ?>
                                                     </option>
                                                 <?php endforeach; ?>
@@ -295,7 +299,7 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                                     </a>
                                     <div>
                                         <button type="button" class="btn btn-outline-danger me-2" 
-                                                onclick="confirmDelete(<?php echo $recordInfo['id']; ?>, '<?php echo htmlspecialchars($recordInfo['name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($recordInfo['type'], ENT_QUOTES); ?>')">
+                                                onclick="openRecordDeleteModal(<?php echo $recordInfo['id']; ?>, '<?php echo htmlspecialchars($recordInfo['name'], ENT_QUOTES); ?>', '<?php echo htmlspecialchars($recordInfo['type'], ENT_QUOTES); ?>')">
                                             <i class="bi bi-trash me-1"></i>
                                             Delete Record
                                         </button>
@@ -311,7 +315,7 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                 </div>
 
                 <!-- Record Information -->
-                <div class="card mt-4">
+                <div class="card mt-4 static-card">
                     <div class="card-header">
                         <h6 class="card-title mb-0">
                             <i class="bi bi-info-circle me-2"></i>
@@ -431,6 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('editRecordForm').addEventListener('submit', function(e) {
         const recordType = recordTypeSelect.value;
         const content = contentInput.value.trim();
+    let contentForValidation = content;
         
         if (!recordType || !content) {
             e.preventDefault();
@@ -440,11 +445,45 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Basic validation based on record type
         const selectedOption = recordTypeSelect.options[recordTypeSelect.selectedIndex];
-        const pattern = selectedOption.getAttribute('data-pattern');
+    const pattern = selectedOption.getAttribute('data-regex-safe');
         
         if (pattern) {
-            const regex = new RegExp(pattern);
-            if (!regex.test(content)) {
+            if (recordType === 'MX') {
+                contentForValidation = contentForValidation.replace(/^([0-9]+)\s+/, '');
+            } else if (recordType === 'SRV') {
+                const prioVal = document.getElementById('record_prio').value.trim();
+                const srvParts = contentForValidation.split(/\s+/);
+                if (srvParts.length === 4 && /^\d+$/.test(srvParts[0]) && srvParts[0] === prioVal) {
+                    srvParts.shift();
+                    contentForValidation = srvParts.join(' ');
+                }
+            }
+            let anchored = pattern;
+            // If pattern contains '|' treat each alternative anchoring individually
+            if (anchored.includes('|')) {
+                anchored = anchored.split('|').map(p => {
+                    p = p.replace(/^\^/, '').replace(/\$$/, '');
+                    return '^(?:' + p + ')$';
+                }).join('|');
+                anchored = '(?:' + anchored + ')';
+            } else {
+                if (!anchored.startsWith('^')) anchored = '^' + anchored;
+                if (!anchored.endsWith('$')) anchored = anchored + '$';
+            }
+            let pass = true;
+            // Specialized JS-side fallback for IP types
+            if (recordType === 'A') {
+                pass = /^((25[0-5]|2[0-4]\d|1?\d?\d)(\.|$)){4}$/.test(contentForValidation);
+            } else if (recordType === 'AAAA') {
+                // Simple IPv6 presence check; detailed server validation will confirm
+                pass = /^[0-9A-Fa-f:]+$/.test(contentForValidation) && contentForValidation.includes(':');
+            }
+            if (pass) {
+                const regex = new RegExp(anchored);
+                pass = regex.test(contentForValidation);
+            }
+            if (!pass) {
+                console.warn('Record validation failed', {recordType, pattern: anchored, original: content, normalized: contentForValidation});
                 e.preventDefault();
                 alert(`Invalid content format for ${recordType} record. Please check the example format.`);
                 return;
@@ -453,13 +492,23 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function confirmDelete(recordId, recordName, recordType) {
+function openRecordDeleteModal(recordId, recordName, recordType) {
+    const modalEl = document.getElementById('deleteModal');
     document.getElementById('deleteRecordId').value = recordId;
     document.getElementById('deleteRecordName').textContent = recordName;
     document.getElementById('deleteRecordType').textContent = recordType;
-    
-    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    modal.show();
+
+    const existing = bootstrap.Modal.getInstance(modalEl);
+    if (existing) {
+        existing.hide();
+        setTimeout(() => {
+            const again = new bootstrap.Modal(modalEl);
+            again.show();
+        }, 10);
+    } else {
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    }
 }
 </script>
 

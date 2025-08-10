@@ -20,7 +20,8 @@ class Records {
         ],
         'AAAA' => [
             'name' => 'AAAA Record (IPv6)',
-            'pattern' => '/^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^::$/',
+            // Comprehensive IPv6 regex supporting compressed forms
+            'pattern' => '/^(([0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}|([0-9A-Fa-f]{1,4}:){1,7}:|([0-9A-Fa-f]{1,4}:){1,6}:[0-9A-Fa-f]{1,4}|([0-9A-Fa-f]{1,4}:){1,5}(:[0-9A-Fa-f]{1,4}){1,2}|([0-9A-Fa-f]{1,4}:){1,4}(:[0-9A-Fa-f]{1,4}){1,3}|([0-9A-Fa-f]{1,4}:){1,3}(:[0-9A-Fa-f]{1,4}){1,4}|([0-9A-Fa-f]{1,4}:){1,2}(:[0-9A-Fa-f]{1,4}){1,5}|[0-9A-Fa-f]{1,4}:((:[0-9A-Fa-f]{1,4}){1,6})|:((:[0-9A-Fa-f]{1,4}){1,7}|:))$/',
             'example' => '2001:db8::1',
             'description' => 'Maps a hostname to an IPv6 address'
         ],
@@ -32,9 +33,10 @@ class Records {
         ],
         'MX' => [
             'name' => 'MX Record (Mail Exchange)',
-            'pattern' => '/^[0-9]+ [a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
-            'example' => '10 mail.example.com.',
-            'description' => 'Specifies mail servers for the domain'
+            // Priority is stored separately in the prio column; allow optional leading number for backward compatibility
+            'pattern' => '/^(?:[0-9]+ )?[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'example' => 'mail.example.com.',
+            'description' => 'Specifies mail server hostname (priority set separately)'
         ],
         'TXT' => [
             'name' => 'TXT Record (Text)',
@@ -57,9 +59,10 @@ class Records {
         ],
         'SRV' => [
             'name' => 'SRV Record (Service)',
-            'pattern' => '/^[0-9]+ [0-9]+ [0-9]+ [a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
-            'example' => '0 5 443 server.example.com.',
-            'description' => 'Defines services available in the domain'
+            // Priority is stored separately (prio column). Pattern allows optional leading priority for legacy entries
+            'pattern' => '/^(?:[0-9]+ )?[0-9]+ [0-9]+ [a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'example' => '5 443 server.example.com.',
+            'description' => 'Defines service weight, port, and target host (priority set separately)'
         ],
         'SOA' => [
             'name' => 'SOA Record (Start of Authority)',
@@ -420,12 +423,18 @@ class Records {
      * Validate record content based on type
      */
     private function validateRecordContent($type, $content) {
+        $content = trim($content);
+        // Use native validators for IP addresses for accuracy
+        if ($type === 'A') {
+            return filter_var($content, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        }
+        if ($type === 'AAAA') {
+            return filter_var($content, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+        }
         $availableTypes = $this->getAvailableRecordTypes();
-        
         if (!isset($availableTypes[$type])) {
             return false;
         }
-        
         $pattern = $availableTypes[$type]['pattern'];
         return preg_match($pattern, $content);
     }

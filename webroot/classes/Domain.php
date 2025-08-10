@@ -20,8 +20,9 @@ class Domain {
      * Get domains for a tenant with optional filtering
      */
     public function getDomainsForTenant($tenantId, $search = '', $zoneTypeFilter = '', $limit = 25, $offset = 0, $sortBy = 'name', $sortOrder = 'ASC') {
-        // Validate sort parameters
-        $allowedSorts = ['name', 'zone_type', 'record_count', 'domain_created'];
+        // Validate sort parameters (whitelist to prevent SQL injection)
+        // Added 'type' and 'dnssec_enabled' for extended sorting options
+        $allowedSorts = ['name', 'zone_type', 'record_count', 'domain_created', 'type', 'dnssec_enabled'];
         $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'name';
         $sortOrder = in_array(strtoupper($sortOrder), ['ASC', 'DESC']) ? strtoupper($sortOrder) : 'ASC';
         
@@ -91,8 +92,9 @@ class Domain {
      * Get all domains (super admin only)
      */
     public function getAllDomains($search = '', $zoneTypeFilter = '', $tenantFilter = '', $limit = 25, $offset = 0, $sortBy = 'name', $sortOrder = 'ASC') {
-        // Validate sort parameters
-        $allowedSorts = ['name', 'zone_type', 'tenant_name', 'record_count', 'domain_created'];
+        // Validate sort parameters (whitelist to prevent SQL injection)
+        // Added 'type' and 'dnssec_enabled' for extended sorting options
+        $allowedSorts = ['name', 'zone_type', 'tenant_name', 'record_count', 'domain_created', 'type', 'dnssec_enabled'];
         $sortBy = in_array($sortBy, $allowedSorts) ? $sortBy : 'name';
         $sortOrder = in_array(strtoupper($sortOrder), ['ASC', 'DESC']) ? strtoupper($sortOrder) : 'ASC';
         
@@ -201,6 +203,28 @@ class Domain {
             $params = [$domainId];
         }
         
+        return $this->db->fetch($sql, $params);
+    }
+
+    /**
+     * Get domain by name with optional tenant check
+     */
+    public function getDomainByName($name, $tenantId = null) {
+        if ($tenantId) {
+            $sql = "SELECT d.*, dt.tenant_id, t.name as tenant_name
+                    FROM domains d
+                    LEFT JOIN domain_tenants dt ON d.id = dt.domain_id
+                    LEFT JOIN tenants t ON dt.tenant_id = t.id
+                    WHERE d.name = ? AND dt.tenant_id = ?";
+            $params = [$name, $tenantId];
+        } else {
+            $sql = "SELECT d.*, dt.tenant_id, t.name as tenant_name
+                    FROM domains d
+                    LEFT JOIN domain_tenants dt ON d.id = dt.domain_id
+                    LEFT JOIN tenants t ON dt.tenant_id = t.id
+                    WHERE d.name = ?";
+            $params = [$name];
+        }
         return $this->db->fetch($sql, $params);
     }
     

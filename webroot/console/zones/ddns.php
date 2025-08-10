@@ -35,18 +35,16 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 
 <div class="container-fluid mt-4">
     <!-- Breadcrumb Navigation -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <?php if ($isSuperAdmin): ?>
-                <li class="breadcrumb-item"><a href="?page=admin_dashboard">System Administration</a></li>
-            <?php endif; ?>
-            <li class="breadcrumb-item"><a href="?page=zone_manage">Zone Management</a></li>
-            <?php if ($domainInfo): ?>
-                <li class="breadcrumb-item"><a href="?page=records&domain_id=<?php echo $domainId; ?>"><?php echo htmlspecialchars($domainInfo['name']); ?></a></li>
-            <?php endif; ?>
-            <li class="breadcrumb-item active" aria-current="page">Dynamic DNS</li>
-        </ol>
-    </nav>
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        $crumbs = [
+            ['label' => 'Zones', 'url' => '?page=zone_manage']
+        ];
+        if ($domainInfo) {
+            $crumbs[] = ['label' => $domainInfo['name'], 'url' => '?page=records&domain_id=' . $domainId];
+        }
+        $crumbs[] = ['label' => 'Dynamic DNS'];
+        renderBreadcrumb($crumbs, $isSuperAdmin, ['class' => 'mb-4']);
+    ?>
 
     <!-- Header -->
     <div class="row mb-4">
@@ -61,12 +59,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <p class="text-muted mb-0">Configure Dynamic DNS for <strong><?php echo htmlspecialchars($domainInfo['name']); ?></strong></p>
                     <?php endif; ?>
                 </div>
-                <div>
-                    <a href="?page=zone_manage" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left me-1"></i>
-                        Back to Zones
-                    </a>
-                </div>
+                <!-- Removed redundant back button (breadcrumb provides navigation) -->
             </div>
         </div>
     </div>
@@ -80,8 +73,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         <?php if (!$domainInfo): ?>
             <div class="text-center">
                 <a href="?page=zone_manage" class="btn btn-primary">
-                    <i class="bi bi-arrow-left me-1"></i>
-                    Back to Zone Management
+                    Return to Zones
                 </a>
             </div>
         <?php endif; ?>

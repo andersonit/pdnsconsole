@@ -136,23 +136,23 @@ $pageTitle = 'Add DNS Zone';
 </style>
 
 <div class="container-fluid py-4">
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => 'Zones', 'url' => '?page=zone_manage'],
+            ['label' => 'Add Zone']
+        ], $isSuperAdmin);
+    ?>
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <!-- Page Header -->
-                <div class="mb-4">
-                <div class="d-flex align-items-center mb-2">
-                    <a href="?page=zones" class="btn btn-outline-secondary btn-sm me-3">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                    <h2 class="h4 mb-0">
-                        <i class="bi bi-plus-circle me-2 text-primary"></i>
-                        Add New DNS Zone
-                    </h2>
-                </div>
-                <p class="text-muted mb-0">
-                    Create a new forward DNS zone or reverse DNS zone with automatic record generation
-                </p>
-            </div>            <?php if (isset($error)): ?>
+            <div class="mb-4">
+                <h2 class="h4 mb-2">
+                    <i class="bi bi-plus-circle me-2 text-primary"></i>
+                    Add New DNS Zone
+                </h2>
+                <p class="text-muted mb-0">Create a new forward DNS zone or reverse DNS zone with automatic record generation</p>
+            </div>
+            <?php if (isset($error)): ?>
                 <div class="alert alert-danger">
                     <i class="bi bi-exclamation-triangle me-2"></i>
                     <?php echo htmlspecialchars($error); ?>

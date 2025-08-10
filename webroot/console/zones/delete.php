@@ -24,6 +24,7 @@ $success = '';
 // Handle domain deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
     $domainId = intval($_POST['domain_id']);
+    $userProvidedConfirm = isset($_POST['confirm_value']) ? trim($_POST['confirm_value']) : '';
     
     try {
         if (empty($domainId)) {
@@ -42,7 +43,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
             throw new Exception('Zone not found or access denied.');
         }
         
-        // Delete the domain
+        // Enforce typed confirmation based on zone type
+        $zoneType = $domainInfo['zone_type'] ?? 'forward';
+        $expected = ($zoneType === 'reverse') ? 'confirm' : $domainInfo['name'];
+        $valid = false;
+        if ($zoneType === 'reverse') {
+            $valid = (strtolower($userProvidedConfirm) === 'confirm');
+        } else {
+            // Domain names are case-insensitive; require exact characters ignoring case
+            $valid = (strcasecmp($userProvidedConfirm, $expected) === 0);
+        }
+        if (!$valid) {
+            throw new Exception('Confirmation text did not match the required value.');
+        }
+
+        // Delete the domain after confirmation passes
         $result = $domain->deleteDomain($domainId, $tenantId);
         
         if ($result) {
@@ -78,19 +93,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
 ?>
 
 <div class="container-fluid py-4">
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => 'Zones', 'url' => '?page=zone_manage'],
+            ['label' => 'Delete Zone']
+        ], $isSuperAdmin);
+    ?>
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <!-- Page Header -->
             <div class="mb-4">
-                <div class="d-flex align-items-center mb-2">
-                    <a href="?page=zones" class="btn btn-outline-secondary btn-sm me-3">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                    <h2 class="h4 mb-0">
-                        <i class="bi bi-trash me-2 text-danger"></i>
-                        Delete Zone
-                    </h2>
-                </div>
+                <h2 class="h4 mb-2">
+                    <i class="bi bi-trash me-2 text-danger"></i>
+                    Delete Zone
+                </h2>
             </div>
 
             <?php if (!empty($error)): ?>
@@ -99,10 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
                     <strong>Error:</strong> <?php echo htmlspecialchars($error); ?>
                 </div>
                 <div class="text-center">
-                    <a href="?page=zones" class="btn btn-primary">
-                        <i class="bi bi-arrow-left me-1"></i>
-                        Back to Zones
-                    </a>
+                    <a href="?page=zone_manage" class="btn btn-primary">Return to Zones</a>
                 </div>
             <?php endif; ?>
 
@@ -116,12 +129,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
                     <div class="card-body text-center">
                         <i class="bi bi-check-circle display-4 text-success mb-3"></i>
                         <h5>Zone Deleted Successfully</h5>
-                        <p class="text-muted">
-                            The zone and all associated records have been permanently removed from the system.
+                        <p class="text-muted mb-2">
+                            The zone, its DNS records, DNSSEC data, metadata, comments, and tenant association have been removed.
+                        </p>
+                        <p class="text-muted small mb-0">
+                            If this zone was referenced by external services or Dynamic DNS clients, update those configurations accordingly.
                         </p>
                         
                         <div class="mt-4">
-                            <a href="?page=zones" class="btn btn-primary me-2">
+                            <a href="?page=zone_manage" class="btn btn-primary me-2">
                                 <i class="bi bi-list-ul me-1"></i>
                                 View All Zones
                             </a>

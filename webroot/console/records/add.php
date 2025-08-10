@@ -75,11 +75,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo) {
         
         // Log the action
         $db = Database::getInstance();
-        $db->execute(
+                $db->execute(
             "INSERT INTO audit_log (user_id, action, table_name, record_id, new_values, ip_address) 
              VALUES (?, 'record_create', 'records', ?, ?, ?)",
             [
-                $currentUser['user_id'],
+                $currentUser['id'],
                 $recordId,
                 json_encode([
                     'domain_id' => $domainId,
@@ -114,14 +114,20 @@ $pageTitle = 'Add DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : '')
 <?php include __DIR__ . '/../../includes/header.php'; ?>
 
 <div class="container-fluid py-4">
+    <?php if ($domainInfo): ?>
+        <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+            renderBreadcrumb([
+                ['label' => 'Zones', 'url' => '?page=zone_manage' . ($domainInfo ? '&tenant_id=' . urlencode($domainInfo['tenant_id'] ?? '') : '')],
+                ['label' => 'Records: ' . $domainInfo['name'], 'url' => '?page=records&domain_id=' . $domainId],
+                ['label' => 'Add Record']
+            ], $isSuperAdmin);
+        ?>
+    <?php endif; ?>
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <!-- Page Header -->
             <div class="mb-4">
                 <div class="d-flex align-items-center mb-2">
-                    <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-secondary btn-sm me-3">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
                     <h2 class="h4 mb-0">
                         <i class="bi bi-plus-circle me-2 text-success"></i>
                         Add DNS Record
@@ -162,10 +168,6 @@ $pageTitle = 'Add DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : '')
                             <i class="bi bi-list-ul me-1"></i>
                             View All Records
                         </a>
-                        <button type="button" class="btn btn-outline-success btn-sm" onclick="location.reload()">
-                            <i class="bi bi-plus-circle me-1"></i>
-                            Add Another Record
-                        </button>
                     </div>
                 </div>
             <?php endif; ?>
@@ -206,6 +208,7 @@ $pageTitle = 'Add DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : '')
                                                 <option value="<?php echo $type; ?>" 
                                                         <?php echo ($preSelectedType === $type || ($recordType ?? '') === $type) ? 'selected' : ''; ?>
                                                         data-pattern="<?php echo htmlspecialchars($info['pattern']); ?>"
+                                                        data-regex-safe="<?php echo htmlspecialchars(trim($info['pattern'],'/')); ?>"
                                                         data-example="<?php echo htmlspecialchars($info['example']); ?>"
                                                         data-description="<?php echo htmlspecialchars($info['description']); ?>">
                                                     <?php echo $info['name']; ?>
@@ -383,14 +386,45 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Basic validation based on record type
         const selectedOption = recordTypeSelect.options[recordTypeSelect.selectedIndex];
-        const pattern = selectedOption.getAttribute('data-pattern');
+    const pattern = selectedOption.getAttribute('data-regex-safe');
         
         if (pattern) {
-            const regex = new RegExp(pattern);
-            if (!regex.test(content)) {
-                e.preventDefault();
-                alert(`Invalid content format for ${recordType} record. Please check the example format.`);
-                return;
+            let contentForValidation = content;
+            if (recordType === 'MX') {
+                contentForValidation = contentForValidation.replace(/^([0-9]+)\s+/, '');
+            } else if (recordType === 'SRV') {
+                const prioVal = document.getElementById('record_prio').value.trim();
+                const srvParts = contentForValidation.split(/\s+/);
+                if (srvParts.length === 4 && /^\d+$/.test(srvParts[0]) && srvParts[0] === prioVal) {
+                    srvParts.shift();
+                    contentForValidation = srvParts.join(' ');
+                }
+            }
+            let anchored = pattern;
+            if (anchored.includes('|')) {
+                anchored = anchored.split('|').map(p => { p = p.replace(/^\^/, '').replace(/\$$/, ''); return '^(?:' + p + ')$'; }).join('|');
+                anchored = '(?:' + anchored + ')';
+            } else {
+                if (!anchored.startsWith('^')) anchored = '^' + anchored;
+                if (!anchored.endsWith('$')) anchored = anchored + '$';
+            }
+            let pass = true;
+            if (recordType === 'A') {
+                pass = /^((25[0-5]|2[0-4]\d|1?\d?\d)(\.|$)){4}$/.test(contentForValidation);
+            } else if (recordType === 'AAAA') {
+                pass = /^[0-9A-Fa-f:]+$/.test(contentForValidation) && contentForValidation.includes(':');
+            }
+            if (pass) {
+                const regex = new RegExp(anchored);
+                pass = regex.test(contentForValidation);
+            }
+            if (!pass) {
+                console.warn('Add Record validation failed (client-side)', {recordType, pattern: anchored, original: content, normalized: contentForValidation});
+                // Instead of blocking submission outright, rely on server-side validation.
+                // Comment out the next 4 lines to restore hard blocking behavior.
+                // e.preventDefault();
+                // alert(`Invalid content format for ${recordType} record. Please check the example format.`);
+                // return;
             }
         }
     });

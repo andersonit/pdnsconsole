@@ -132,23 +132,24 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
 <?php include __DIR__ . '/../../includes/header.php'; ?>
 
 <div class="container-fluid py-4">
+    <?php if ($domainInfo): ?>
+        <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+            renderBreadcrumb([
+                ['label' => 'Zones', 'url' => '?page=zone_manage'],
+                ['label' => 'Edit Zone']
+            ], $isSuperAdmin);
+        ?>
+    <?php endif; ?>
     <div class="row justify-content-center">
         <div class="col-lg-8">
             <!-- Page Header -->
             <div class="mb-4">
-                <div class="d-flex align-items-center mb-2">
-                    <a href="?page=zones" class="btn btn-outline-secondary btn-sm me-3">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                    <h2 class="h4 mb-0">
-                        <i class="bi bi-pencil me-2 text-primary"></i>
-                        Edit Zone
-                    </h2>
-                </div>
+                <h2 class="h4 mb-2">
+                    <i class="bi bi-pencil me-2 text-primary"></i>
+                    Edit Zone
+                </h2>
                 <?php if ($domainInfo): ?>
-                    <p class="text-muted mb-0">
-                        Modify settings for <strong><?php echo htmlspecialchars($domainInfo['name']); ?></strong>
-                    </p>
+                    <p class="text-muted mb-0">Modify settings for <strong><?php echo htmlspecialchars($domainInfo['name']); ?></strong></p>
                 <?php endif; ?>
             </div>
 
@@ -315,8 +316,8 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                         Add New Record
                                     </a>
                                     <?php if ($isSuperAdmin): ?>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" 
-                                                onclick="confirmDelete(<?php echo $domainInfo['id']; ?>, '<?php echo htmlspecialchars($domainInfo['name'], ENT_QUOTES); ?>')">
+                    <button type="button" class="btn btn-outline-danger btn-sm" 
+                        onclick="openZoneDeleteModal(<?php echo $domainInfo['id']; ?>, '<?php echo htmlspecialchars($domainInfo['name'], ENT_QUOTES); ?>')">
                                             <i class="bi bi-trash me-1"></i>
                                             Delete Domain
                                         </button>
@@ -343,18 +344,35 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <p>Are you sure you want to delete the domain <strong id="deleteDomainName"></strong>?</p>
-                <div class="alert alert-warning">
+                <p>Are you absolutely sure you want to delete the zone <strong id="deleteDomainName"></strong>?</p>
+                <div class="alert alert-warning mb-3">
                     <i class="bi bi-exclamation-triangle me-2"></i>
-                    <strong>This action cannot be undone!</strong>
-                    <br>All DNS records, DNSSEC keys, and associated data will be permanently deleted.
+                    <strong>Irreversible operation.</strong> This will permanently remove:
+                    <ul class="mt-2 mb-0 small">
+                        <li>All DNS records (A, AAAA, CNAME, MX, TXT, etc.)</li>
+                        <li>DNSSEC keys and signing metadata</li>
+                        <li>Zone metadata and comments</li>
+                        <li>Tenant association</li>
+                        <li>Dynamic DNS configuration (if present)</li>
+                    </ul>
+                    <div class="mt-2 small">This action cannot be undone.</div>
                 </div>
+                <div class="alert alert-danger small">
+                    <i class="bi bi-shield-exclamation me-2"></i>
+                    Ensure any dependent services are reconfigured before deleting this zone.
+                </div>
+                <div class="mb-2 small fw-semibold" id="deleteInstruction"></div>
+                <div class="mb-3">
+                    <input type="text" class="form-control form-control-sm" id="deleteConfirmInput" placeholder="Type here to confirm" autocomplete="off">
+                </div>
+                <div class="small text-muted" id="deleteConfirmHint"></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" action="?page=zone_delete" class="d-inline">
+                <form method="POST" action="?page=zone_delete" class="d-inline" id="deleteDomainForm">
                     <input type="hidden" name="domain_id" id="deleteDomainId">
-                    <button type="submit" class="btn btn-danger">
+                    <input type="hidden" name="confirm_value" id="deleteConfirmValue">
+                    <button type="submit" class="btn btn-danger" id="deleteSubmitBtn" disabled>
                         <i class="bi bi-trash me-1"></i>
                         Delete Domain
                     </button>
@@ -365,13 +383,40 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
 </div>
 
 <script>
-function confirmDelete(domainId, domainName) {
+const zoneType = <?php echo json_encode($domainInfo['zone_type'] ?? 'forward'); ?>;
+const zoneName = <?php echo json_encode($domainInfo['name'] ?? ''); ?>;
+let requiredDeleteText = zoneType === 'reverse' ? 'confirm' : zoneName;
+
+function openZoneDeleteModal(domainId, domainName) {
     document.getElementById('deleteDomainId').value = domainId;
     document.getElementById('deleteDomainName').textContent = domainName;
+    requiredDeleteText = (zoneType === 'reverse') ? 'confirm' : domainName;
+    const instruction = zoneType === 'reverse'
+        ? 'Type \"confirm\" to permanently delete this reverse zone.'
+        : 'Type the full zone name exactly to confirm deletion.';
+    document.getElementById('deleteInstruction').textContent = instruction;
+    document.getElementById('deleteConfirmHint').textContent = 'Required: ' + requiredDeleteText;
+    const input = document.getElementById('deleteConfirmInput');
+    input.value = '';
+    document.getElementById('deleteSubmitBtn').disabled = true;
     
     const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
     modal.show();
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    const input = document.getElementById('deleteConfirmInput');
+    const hidden = document.getElementById('deleteConfirmValue');
+    const btn = document.getElementById('deleteSubmitBtn');
+    if (input) {
+        input.addEventListener('input', () => {
+            const val = input.value.trim();
+            const match = zoneType === 'reverse' ? (val.toLowerCase() === requiredDeleteText) : (val === requiredDeleteText);
+            btn.disabled = !match;
+            hidden.value = val;
+        });
+    }
+});
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

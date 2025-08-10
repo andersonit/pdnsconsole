@@ -1,4 +1,5 @@
 <?php
+
 /**
  * PDNS Console - System Administration Dashboard
  */
@@ -11,6 +12,7 @@ if (!$user->isSuperAdmin($currentUser['id'])) {
 
 // Get dashboard statistics
 $db = Database::getInstance();
+$auditLog = new AuditLog();
 
 // Count zones
 $zonesCount = $db->fetch("SELECT COUNT(*) as count FROM domains");
@@ -36,14 +38,8 @@ $dnssecCount = $db->fetch(
 );
 $dnssecZones = $dnssecCount['count'] ?? 0;
 
-// Get recent system activity (last 10 entries)
-$recentActivity = $db->fetchAll(
-    "SELECT al.*, au.username
-     FROM audit_log al
-     LEFT JOIN admin_users au ON al.user_id = au.id
-     ORDER BY al.created_at DESC
-     LIMIT 10"
-);
+// Get recent system activity (last 10 entries) using AuditLog helper
+$recentActivity = $auditLog->getRecentActivity(10);
 
 // Get system health info
 $systemHealth = [
@@ -176,7 +172,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
                 <div class="card-body">
                     <div class="row g-3">
-                        <div class="col-12">
+                        <div class="col-6">
                             <a href="?page=zone_manage" class="btn btn-outline-info w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 80px;">
                                 <i class="bi bi-globe d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">DNS Management</div>
@@ -187,7 +183,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <a href="?page=admin_users" class="btn btn-outline-info w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
                                 <i class="bi bi-person-gear d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">Users</div>
-                                <small class="text-muted">Manage admin users</small>
+                                <small class="text-muted">Manage all users</small>
                             </a>
                         </div>
                         <div class="col-6">
@@ -195,6 +191,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <i class="bi bi-building d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">Tenants</div>
                                 <small class="text-muted">Manage organizations</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="?page=admin_record_types" class="btn btn-outline-info w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
+                                <i class="bi bi-list-columns d-block fs-4 mb-2"></i>
+                                <div class="fw-semibold">Record Types</div>
+                                <small class="text-muted">Manage Available Record types</small>
                             </a>
                         </div>
                     </div>
@@ -228,35 +231,12 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </a>
                         </div>
                         <div class="col-6">
-                            <a href="?page=admin_record_types" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
-                                <i class="bi bi-list-columns d-block fs-4 mb-2"></i>
-                                <div class="fw-semibold">Record Types</div>
-                                <small class="text-muted">Custom DNS types</small>
-                            </a>
-                        </div>
-                        <div class="col-6">
                             <a href="?page=admin_system" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
                                 <i class="bi bi-cpu d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">System Info</div>
                                 <small class="text-muted">Health & maintenance</small>
                             </a>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Monitoring & Audit Tools -->
-        <div class="col-lg-6 mb-4">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-transparent border-0 pb-0">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-activity me-2"></i>
-                        Monitoring & Audit
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
                         <div class="col-6">
                             <a href="?page=admin_audit" class="btn btn-outline-info w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
                                 <i class="bi bi-journal-text d-block fs-4 mb-2"></i>
@@ -264,20 +244,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <small class="text-muted">System activity</small>
                             </a>
                         </div>
-                        <div class="col-6">
-                            <div class="btn btn-outline-secondary w-100 py-3 disabled d-flex flex-column justify-content-center" style="min-height: 120px;">
-                                <i class="bi bi-graph-up d-block fs-4 mb-2"></i>
-                                <div class="fw-semibold">Analytics</div>
-                                <small class="text-muted">Coming soon</small>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Recent Activity -->
-        <div class="col-lg-6 mb-4">
+        <div class="col-lg-12 mb-4">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-header bg-transparent border-0 pb-0">
                     <h6 class="card-title mb-0">
@@ -287,29 +260,84 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
                 <div class="card-body">
                     <?php if (!empty($recentActivity)): ?>
-                        <div class="activity-feed">
-                            <?php foreach (array_slice($recentActivity, 0, 5) as $activity): ?>
-                                <div class="d-flex mb-3">
-                                    <div class="flex-shrink-0">
-                                        <div class="bg-primary bg-opacity-10 rounded-circle d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
-                                            <i class="bi bi-activity text-primary" style="font-size: 14px;"></i>
-                                        </div>
-                                    </div>
-                                    <div class="flex-grow-1 ms-3">
-                                        <div class="fw-semibold mb-1">
-                                            <?php echo htmlspecialchars($activity['action']); ?>
-                                        </div>
-                                        <div class="text-muted small">
-                                            <?php echo htmlspecialchars($activity['username'] ?? 'System'); ?> • 
-                                            <?php echo date('M j, g:i A', strtotime($activity['created_at'])); ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>User</th>
+                                        <th>Action</th>
+                                        <th>Table</th>
+                                        <th>Record ID</th>
+                                        <th>IP</th>
+                                        <th class="text-end">Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($recentActivity as $entry): ?>
+                                        <tr>
+                                            <td>
+                                                <small class="text-muted d-block">
+                                                    <?php echo date('M j, Y H:i:s', strtotime($entry['created_at'])); ?>
+                                                </small>
+                                            </td>
+                                            <td>
+                                                <?php if ($entry['username']): ?>
+                                                    <div class="fw-semibold small">
+                                                        <?php echo htmlspecialchars($entry['username']); ?>
+                                                    </div>
+                                                    <?php if (!empty($entry['email'])): ?>
+                                                        <small class="text-muted"><?php echo htmlspecialchars($entry['email']); ?></small>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <span class="text-muted small">System</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <span class="badge <?php echo $auditLog->getActionBadgeClass($entry['action']); ?>">
+                                                    <?php echo htmlspecialchars($auditLog->formatAction($entry['action'])); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <?php if ($entry['table_name']): ?>
+                                                    <code class="small"><?php echo htmlspecialchars($entry['table_name']); ?></code>
+                                                <?php else: ?>
+                                                    <span class="text-muted small">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <?php if ($entry['record_id']): ?>
+                                                    <code class="small"><?php echo htmlspecialchars($entry['record_id']); ?></code>
+                                                <?php else: ?>
+                                                    <span class="text-muted small">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <small class="text-muted"><?php echo htmlspecialchars($entry['ip_address']); ?></small>
+                                            </td>
+                                            <td class="text-end">
+                                                <?php if ($entry['old_values'] || $entry['new_values'] || $entry['metadata']): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-info" 
+                                                            data-bs-toggle="modal" 
+                                                            data-bs-target="#dashboardDetailsModal" 
+                                                            data-action="<?php echo htmlspecialchars($entry['action']); ?>"
+                                                            data-old-values="<?php echo htmlspecialchars($entry['old_values'] ?? ''); ?>"
+                                                            data-new-values="<?php echo htmlspecialchars($entry['new_values'] ?? ''); ?>"
+                                                            data-metadata="<?php echo htmlspecialchars($entry['metadata'] ?? ''); ?>">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                <?php else: ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php endif; ?>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="text-center">
+                        <div class="text-end mt-3">
                             <a href="?page=admin_audit" class="btn btn-sm btn-outline-primary">
-                                View All Activity
+                                View Full Audit Log
                             </a>
                         </div>
                     <?php else: ?>
@@ -326,7 +354,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
     <!-- System Health Status -->
     <div class="row">
         <div class="col-12">
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-transparent border-0">
                     <h6 class="card-title mb-0">
                         <i class="bi bi-heart-pulse me-2"></i>
@@ -389,12 +417,46 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 this.style.transform = 'translateY(0)';
             });
         });
-        
+
         // Refresh functionality
         document.getElementById('refresh-btn')?.addEventListener('click', function() {
             window.location.reload();
         });
     });
+</script>
+
+<!-- Audit Details Modal (Dashboard) -->
+<div class="modal fade" id="dashboardDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-file-text me-2"></i>
+                    Audit Entry Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="dashboard-details-content"></div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.getElementById('dashboardDetailsModal')?.addEventListener('show.bs.modal', function (event) {
+    const button = event.relatedTarget;
+    if (!button) return;
+    const action = button.getAttribute('data-action');
+    const oldValues = button.getAttribute('data-old-values');
+    const newValues = button.getAttribute('data-new-values');
+    const metadata = button.getAttribute('data-metadata');
+    let html = '<h6>Action: <span class="badge bg-primary">' + (action || '') + '</span></h6>';
+    const section = (title, data) => '<div class="mt-3"><h6>' + title + ':</h6><pre class="bg-light p-2 rounded small"><code>' + data + '</code></pre></div>';
+    if (oldValues) html += section('Previous Values', oldValues);
+    if (newValues) html += section('New Values', newValues);
+    if (metadata) html += section('Metadata', metadata);
+    document.getElementById('dashboard-details-content').innerHTML = html;
+});
 </script>
 
 <?php include $_SERVER['DOCUMENT_ROOT'] . '/includes/footer.php'; ?>

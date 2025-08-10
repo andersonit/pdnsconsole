@@ -18,13 +18,6 @@ define('PASSWORD_MIN_LENGTH', 8);
 define('ENCRYPTION_METHOD', 'AES-256-CBC');
 define('ENCRYPTION_KEY', '23caf988963acc2a051b253498e7016b'); // Generated secure key
 
-// File Upload Settings
-define('MAX_UPLOAD_SIZE', 5 * 1024 * 1024); // 5MB
-define('ALLOWED_LOGO_TYPES', ['image/jpeg', 'image/png', 'image/gif']);
-
-// Pagination
-define('DEFAULT_RECORDS_PER_PAGE', 25);
-define('MAX_RECORDS_PER_PAGE', 100);
 
 // API Settings
 define('API_RATE_LIMIT_REQUESTS', 3);
@@ -113,7 +106,6 @@ if (PDNS_ENV === 'development') {
     ini_set('display_errors', 0);
 }
 
-// Timezone
-date_default_timezone_set('UTC');
+// Timezone is now stored in global_settings (timezone); bootstrap or runtime code should set date_default_timezone_set dynamically after loading settings.
 
 ?>

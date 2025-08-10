@@ -113,6 +113,10 @@ if ($page === 'login') {
             
             if ($mfaValid) {
                 // MFA verification successful
+                // Regenerate session ID to prevent fixation and ensure fresh cookie
+                if (function_exists('session_regenerate_id')) {
+                    @session_regenerate_id(true);
+                }
                 $_SESSION['user_id'] = $userId;
                 $_SESSION['username'] = $tempUserData['username'];
                 $_SESSION['email'] = $tempUserData['email'];
@@ -151,6 +155,9 @@ if ($page === 'login') {
                     $loginSuccess = 'Password correct. Please enter your 2FA code.';
                 } else {
                     // No MFA - direct login
+                    if (function_exists('session_regenerate_id')) {
+                        @session_regenerate_id(true);
+                    }
                     $_SESSION['user_id'] = $userId;
                     $_SESSION['username'] = $authResult['user']['username'];
                     $_SESSION['email'] = $authResult['user']['email'];
@@ -213,6 +220,7 @@ $pageRoutes = [
     'record_delete' => 'console/records/delete.php',
     'record_import' => 'console/records/import.php',
     'record_export' => 'console/records/export.php',
+    'records_import' => 'console/records/import.php',
     'profile' => 'console/profile.php',
     
     // Admin pages (super admin only)

@@ -114,18 +114,27 @@ if ($themeInfo['effective_dark']) {
                            autocomplete="one-time-code">
                     <label for="mfa_code">2FA Code</label>
                 </div>
-                
-                <div class="text-center mb-3">
-                    <small class="text-muted">Or use a backup code</small>
+                <div id="mfa_toggle_container" class="text-center mb-3">
+                    <a href="#" id="show_backup_code" class="small text-decoration-none">
+                        <i class="bi bi-shield-lock me-1"></i>Use a backup code instead
+                    </a>
                 </div>
-                
-                <div class="form-floating mb-3">
-                    <input type="text" 
-                           class="form-control" 
-                           id="backup_code" 
-                           name="backup_code" 
-                           placeholder="12345678">
-                    <label for="backup_code">Backup Code (optional)</label>
+
+                <div id="backup_code_container" class="d-none">
+                    <div class="form-floating mb-3">
+                        <input type="text" 
+                               class="form-control" 
+                               id="backup_code" 
+                               name="backup_code" 
+                               placeholder="12345678"
+                               autocomplete="off">
+                        <label for="backup_code">Backup Code</label>
+                    </div>
+                    <div class="text-center mb-3">
+                        <a href="#" id="show_mfa_code" class="small text-decoration-none">
+                            <i class="bi bi-arrow-left me-1"></i>Use authenticator app instead
+                        </a>
+                    </div>
                 </div>
                 
                 <div class="row g-2">
@@ -268,35 +277,45 @@ if ($themeInfo['effective_dark']) {
             mfaCodeInput.focus();
         }
         
-        // Backup code formatting
-        const backupCodeInput = document.getElementById('backup_code');
-        if (backupCodeInput) {
-            backupCodeInput.addEventListener('input', function() {
-                // Remove non-digits
-                this.value = this.value.replace(/[^0-9]/g, '');
-            });
-        }
-        
-        // Disable MFA input when backup code is entered and vice versa
-        if (mfaCodeInput && backupCodeInput) {
-            mfaCodeInput.addEventListener('input', function() {
-                if (this.value.length > 0) {
-                    backupCodeInput.disabled = true;
-                    backupCodeInput.value = '';
-                } else {
-                    backupCodeInput.disabled = false;
-                }
-            });
-            
-            backupCodeInput.addEventListener('input', function() {
-                if (this.value.length > 0) {
-                    mfaCodeInput.disabled = true;
+        // Backup code toggle & formatting
+        const backupContainer = document.getElementById('backup_code_container');
+        const showBackupLink = document.getElementById('show_backup_code');
+        const showMfaLink = document.getElementById('show_mfa_code');
+        let backupCodeInput = null;
+
+        if (showBackupLink && backupContainer) {
+            showBackupLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                backupContainer.classList.remove('d-none');
+                document.getElementById('mfa_toggle_container').classList.add('d-none');
+                if (mfaCodeInput) {
                     mfaCodeInput.value = '';
-                } else {
-                    mfaCodeInput.disabled = false;
+                    mfaCodeInput.closest('.form-floating').classList.add('d-none');
                 }
+                backupCodeInput = document.getElementById('backup_code');
+                backupCodeInput.focus();
             });
         }
+
+        if (showMfaLink && backupContainer) {
+            showMfaLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                backupContainer.classList.add('d-none');
+                document.getElementById('mfa_toggle_container').classList.remove('d-none');
+                if (mfaCodeInput) {
+                    mfaCodeInput.closest('.form-floating').classList.remove('d-none');
+                    mfaCodeInput.focus();
+                }
+                if (backupCodeInput) backupCodeInput.value = '';
+            });
+        }
+
+        // Formatting for backup code when visible
+        document.addEventListener('input', function(e) {
+            if (e.target && e.target.id === 'backup_code') {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            }
+        });
     </script>
 </body>
 </html>

@@ -30,6 +30,15 @@ $systemInfo = [
     'disk_free' => disk_free_space('.')
 ];
 
+// Determine application timezone (fallback to system default / UTC)
+$appTimezone = $settings->get('timezone', ini_get('date.timezone') ?: 'UTC');
+if (!in_array($appTimezone, timezone_identifiers_list())) {
+    $appTimezone = 'UTC';
+}
+// Localized current date (don't globally override default timezone for safety)
+$todayLocal = (new DateTime('now', new DateTimeZone($appTimezone)))->format('Y-m-d');
+$nowLocalDateTime = (new DateTime('now', new DateTimeZone($appTimezone)))->format('Y-m-d H:i:s');
+
 // Get system uptime
 function getSystemUptime() {
     $uptime = null;
@@ -169,6 +178,11 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <span class="text-muted">N/A</span>
                             <?php endif; ?>
                         </dd>
+                        <dt class="col-sm-4">Current Time:</dt>
+                        <dd class="col-sm-8">
+                            <code title="Timezone: <?php echo htmlspecialchars($appTimezone); ?>"><?php echo htmlspecialchars($nowLocalDateTime); ?></code>
+                            <small class="text-muted">(<?php echo htmlspecialchars($appTimezone); ?>)</small>
+                        </dd>
                         
                         <dt class="col-sm-4">System Uptime:</dt>
                         <dd class="col-sm-8">
@@ -290,7 +304,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
     <!-- Application Statistics -->
     <div class="row">
         <div class="col-12">
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-transparent border-0">
                     <h6 class="card-title mb-0">
                         <i class="bi bi-graph-up me-2"></i>
@@ -331,73 +345,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         </div>
                         <div class="col-md-2">
                             <div class="text-center">
-                                <div class="fs-3 fw-bold text-muted"><?php echo date('Y-m-d'); ?></div>
-                                <small class="text-muted">Today</small>
+                                <div class="fs-5 fw-bold text-info" title="Uptime seconds: <?php echo number_format($uptimeInfo['seconds'] ?? 0); ?>">
+                                    <?php echo htmlspecialchars($uptimeInfo['formatted']); ?>
+                                </div>
+                                <small class="text-muted">System Uptime</small>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- System Status -->
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-transparent border-0">
-                    <h6 class="card-title mb-0">
-                        <i class="bi bi-heart-pulse me-2"></i>
-                        System Health Status
-                    </h6>
-                </div>
-                <div class="card-body">
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-success bg-opacity-10 rounded-3 p-2 me-3">
-                                    <i class="bi bi-check-circle text-success"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-semibold">Application</div>
-                                    <small class="text-success">Running</small>
-                                </div>
-                            </div>
                         </div>
-                        <div class="col-md-3">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-<?php echo $dbInfo['connection'] === 'Connected' ? 'success' : 'danger'; ?> bg-opacity-10 rounded-3 p-2 me-3">
-                                    <i class="bi bi-database text-<?php echo $dbInfo['connection'] === 'Connected' ? 'success' : 'danger'; ?>"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-semibold">Database</div>
-                                    <small class="text-<?php echo $dbInfo['connection'] === 'Connected' ? 'success' : 'danger'; ?>"><?php echo $dbInfo['connection']; ?></small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-info bg-opacity-10 rounded-3 p-2 me-3">
-                                    <i class="bi bi-people text-info"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-semibold">Sessions</div>
-                                    <small class="text-muted"><?php echo $appStats['active_sessions']; ?> active</small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="d-flex align-items-center">
-                                <div class="bg-warning bg-opacity-10 rounded-3 p-2 me-3">
-                                    <i class="bi bi-clock text-warning"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-semibold">System Uptime</div>
-                                    <small class="text-muted"><?php echo htmlspecialchars($uptimeInfo['formatted']); ?></small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>

@@ -14,10 +14,13 @@ require_once __DIR__ . '/../classes/Settings.php';
         document.addEventListener('DOMContentLoaded', function() {
             const alerts = document.querySelectorAll('.alert');
             alerts.forEach(function(alert) {
-                if (alert.classList.contains('alert-success') || alert.classList.contains('alert-info')) {
+                // Only auto-dismiss success/info alerts that are NOT inside a modal
+                if (!alert.closest('.modal') && (alert.classList.contains('alert-success') || alert.classList.contains('alert-info'))) {
                     setTimeout(function() {
-                        const bsAlert = new bootstrap.Alert(alert);
-                        bsAlert.close();
+                        if (document.body.contains(alert)) {
+                            const bsAlert = new bootstrap.Alert(alert);
+                            bsAlert.close();
+                        }
                     }, 5000);
                 }
             });

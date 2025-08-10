@@ -144,19 +144,23 @@ $pageTitle = 'Bulk Add DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name']
 <?php include __DIR__ . '/../../includes/header.php'; ?>
 
 <div class="container-fluid py-4">
+    <?php if ($domainInfo): ?>
+        <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+            renderBreadcrumb([
+                ['label' => 'Zones', 'url' => '?page=zone_manage' . ($domainInfo ? '&tenant_id=' . urlencode($domainInfo['tenant_id'] ?? '') : '')],
+                ['label' => 'Records: ' . $domainInfo['name'], 'url' => '?page=records&domain_id=' . $domainId],
+                ['label' => 'Bulk Add']
+            ], $isSuperAdmin);
+        ?>
+    <?php endif; ?>
     <div class="row justify-content-center">
         <div class="col-lg-10">
             <!-- Page Header -->
             <div class="mb-4">
-                <div class="d-flex align-items-center mb-2">
-                    <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-secondary btn-sm me-3">
-                        <i class="bi bi-arrow-left"></i>
-                    </a>
-                    <h2 class="h4 mb-0">
-                        <i class="bi bi-plus-square me-2 text-success"></i>
-                        Bulk Add DNS Records
-                    </h2>
-                </div>
+                <h2 class="h4 mb-2">
+                    <i class="bi bi-plus-square me-2 text-success"></i>
+                    Bulk Add DNS Records
+                </h2>
                 <?php if ($domainInfo): ?>
                     <p class="text-muted mb-0">
                         Adding multiple records to <strong><?php echo htmlspecialchars($domainInfo['name']); ?></strong>
@@ -175,9 +179,8 @@ $pageTitle = 'Bulk Add DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name']
                 
                 <?php if (!$domainInfo): ?>
                     <div class="text-center">
-                        <a href="?page=zones" class="btn btn-primary">
-                            <i class="bi bi-arrow-left me-1"></i>
-                            Back to Zones
+                        <a href="?page=zone_manage" class="btn btn-primary">
+                            Return to Zones
                         </a>
                     </div>
                 <?php endif; ?>

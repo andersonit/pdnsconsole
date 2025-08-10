@@ -150,22 +150,22 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
 
 <div class="container-fluid mt-4">
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => 'Zones', 'url' => '?page=zone_manage'],
+            ['label' => 'Bulk Add Zones']
+        ], $isSuperAdmin);
+    ?>
     <!-- Header -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h1 class="h3 mb-0">
+                    <h1 class="h3 mb-1">
                         <i class="bi bi-layers me-2"></i>
                         Bulk Add Zones
                     </h1>
                     <p class="text-muted mb-0">Add multiple zones at once</p>
-                </div>
-                <div>
-                    <a href="?page=zones" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left me-1"></i>
-                        Back to Zones
-                    </a>
                 </div>
             </div>
         </div>

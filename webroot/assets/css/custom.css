@@ -258,9 +258,82 @@ html, body {
     height: 100%;
 }
 
+/* Stabilize informational cards to avoid vertical shift on hover/focus */
+.card.border-info {
+    position: relative;
+}
+.card.border-info:hover {
+    /* Prevent any theme hover border enlargement causing reflow */
+    border-width: 1px;
+}
+.card.border-info .card-header {
+    /* Ensure consistent padding so line-height changes don't shift layout */
+    line-height: 1.2;
+}
+
+/* Prevent layout shift on info card hover */
+.no-hover-effect {
+    transition: none !important;
+    box-shadow: none !important;
+}
+.no-hover-effect:hover,
+.no-hover-effect:focus,
+.no-hover-effect:active {
+    box-shadow: none !important;
+    transform: none !important;
+    border-color: inherit !important;
+}
+
+/* Stronger stabilization for info card (prevents vertical reflow on hover in some Bootswatch themes) */
+.no-hover-effect,
+.no-hover-effect:hover,
+.no-hover-effect:focus {
+    border: 1px solid var(--bs-border-color, rgba(0,0,0,.125)) !important; /* consistent border */
+    background-color: var(--bs-body-bg) !important; /* keep background stable */
+    margin-top: 0 !important;
+    margin-bottom: 1.25rem !important;
+    transform: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+    position: relative;
+}
+.no-hover-effect * { transition: none !important; }
+.no-hover-effect .card-header { padding: .55rem .85rem !important; }
+.no-hover-effect .card-body { padding: .85rem .85rem !important; }
+.no-hover-effect:hover .card-header, .no-hover-effect:hover .card-body { padding: .55rem .85rem !important; }
+
+/* Fallback if theme removes border on hover */
+.no-hover-effect:hover { border: 1px solid var(--bs-border-color, rgba(0,0,0,.125)) !important; }
+
+/* Global card stabilization to prevent vertical jump on hover */
+/* Card spacing stabilization: use only top margins between siblings to avoid collapse jitter */
+.card {
+    border-width: 1px !important;
+    margin: 0 !important; /* remove individual margins */
+    transition: none !important;
+}
+.card + .card { margin-top: 1.25rem !important; }
+.card:hover, .card:focus { border-width: 1px !important; }
+/* Explicitly neutralize Bootswatch hover shadows that alter box metrics */
+.card:hover { box-shadow: none !important; }
+
+/* Static cards: completely neutralize hover-induced visual/layout changes */
+.static-card,
+.static-card:hover,
+.static-card:focus {
+    border: 0 !important; /* remove border entirely */
+    box-shadow: none !important;
+    background-color: var(--bs-body-bg) !important;
+    transform: none !important;
+    margin-bottom: 1.25rem !important;
+}
+.static-card .card-header { padding: .55rem .85rem !important; }
+.static-card .card-body { padding: .85rem .85rem !important; }
+
 body {
     display: flex;
     flex-direction: column;
+    overflow-x: hidden; /* Prevent horizontal scrollbar from any wide child element */
 }
 
 .container-fluid {
@@ -404,14 +477,13 @@ footer {
 
 /* ===== FOOTER SPECIFIC STYLES ===== */
 
-/* Full-width footer styling */
+/* Full-width footer styling (revised)
+   Removed previous 100vw + negative margin technique that caused horizontal overflow.
+   Using standard width:100% so it aligns with page content and relies on container-fluid.
+*/
 .footer-full-width {
-    position: relative;
-    left: 50%;
-    right: 50%;
-    margin-left: -50vw;
-    margin-right: -50vw;
-    width: 100vw;
+    width: 100%;
+    margin: 0;
 }
 
 /* ===== LOGIN PAGE STYLES ===== */
@@ -630,3 +702,13 @@ body.dark-mode {
 .card.mb-4 {
     margin-bottom: 1.5rem !important; /* Force consistent bottom margin */
 }
+
+/* === Info Panel component (non-card) to avoid hover-induced layout shift === */
+.info-panel { border: 0 !important; background: var(--bs-body-bg); padding: 0; margin: 0 0 1.25rem 0; }
+.info-panel-title { font-weight:600; font-size:.95rem; display:flex; align-items:center; gap:.4rem; padding:.4rem .6rem .35rem .6rem; background: rgba(var(--bs-info-rgb,13,202,240),0.12); border-radius:.25rem .25rem 0 0; line-height:1.2; }
+.info-panel-body { font-size:.8rem; line-height:1.25rem; padding:.65rem .75rem .75rem .75rem; border:1px solid rgba(0,0,0,.08); border-top:0; border-radius:0 0 .25rem .25rem; }
+.info-panel-body ol { margin:0 0 .5rem 1.1rem; padding:0; }
+.info-panel-body li { margin-bottom:.25rem; }
+.info-panel-body .note { margin:0; color: var(--bs-secondary-color,#6c757d); font-size:.75rem; }
+.info-panel:hover, .info-panel:focus { background: var(--bs-body-bg); }
+

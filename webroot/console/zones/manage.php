@@ -9,9 +9,31 @@ $db = Database::getInstance();
 // Get current user and determine access level
 $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 
-// Get pagination parameters
+// Get pagination parameters (use system default records_per_page setting)
 $page_num = isset($_GET['page_num']) ? max(1, intval($_GET['page_num'])) : 1;
-$limit = 20;
+$settingsDb = Database::getInstance();
+$rppSetting = $settingsDb->fetch("SELECT setting_value FROM global_settings WHERE setting_key = 'records_per_page'");
+$defaultLimit = intval($rppSetting['setting_value'] ?? 25);
+if (!in_array($defaultLimit, [10,25,50,100])) { $defaultLimit = 25; }
+// Allowed per-page options
+$allowedLimits = [10,25,50,100];
+
+// If user provided a limit, validate and store in session; else fall back to session then default
+if (isset($_GET['limit'])) {
+    $providedLimit = intval($_GET['limit']);
+    if (in_array($providedLimit, $allowedLimits)) {
+        $limit = $providedLimit;
+        $_SESSION['zones_per_page'] = $limit; // persist selection
+    } else {
+        $limit = $defaultLimit;
+    }
+} else {
+    if (isset($_SESSION['zones_per_page']) && in_array(intval($_SESSION['zones_per_page']), $allowedLimits)) {
+        $limit = intval($_SESSION['zones_per_page']);
+    } else {
+        $limit = $defaultLimit;
+    }
+}
 $offset = ($page_num - 1) * $limit;
 
 // Get search and filter parameters
@@ -20,6 +42,12 @@ $zoneTypeFilter = $_GET['zone_type'] ?? '';
 $tenantFilter = $_GET['tenant_filter'] ?? '';
 $sortBy = $_GET['sort_by'] ?? 'name';
 $sortOrder = $_GET['sort_order'] ?? 'ASC';
+
+// Whitelist sortable columns (must match Domain class + multi-tenant query capabilities)
+$allowedZoneSorts = ['name','zone_type','record_count','domain_created','type','dnssec_enabled','tenant_name'];
+if (!in_array($sortBy, $allowedZoneSorts)) { $sortBy = 'name'; }
+$sortOrder = strtoupper($sortOrder);
+if (!in_array($sortOrder, ['ASC','DESC'])) { $sortOrder = 'ASC'; }
 
 // Get tenant information
 $selectedTenantId = null;
@@ -83,16 +111,33 @@ try {
                     $params[] = $zoneTypeFilter;
                 }
                 
+                // Build safe ORDER BY mapping (avoid direct interpolation of user input)
+                $orderColumnMap = [
+                    'name' => 'd.name',
+                    'zone_type' => 'zone_type', // alias below
+                    'record_count' => 'record_count', // subquery alias
+                    'domain_created' => 'dt.created_at',
+                    'type' => 'd.type',
+                    'dnssec_enabled' => 'dnssec_enabled',
+                    'tenant_name' => 't.name'
+                ];
+                if (!array_key_exists($sortBy, $orderColumnMap)) { $sortBy = 'name'; }
+                $orderExpr = $orderColumnMap[$sortBy] . ' ' . $sortOrder;
+                if ($sortBy !== 'name') {
+                    $orderExpr .= ', d.name ASC'; // stable secondary sort
+                }
                 $domains = $db->fetchAll(
-                    "SELECT DISTINCT d.*, t.name as tenant_name, 
+                    "SELECT DISTINCT d.id, d.name, d.type, d.account, t.name as tenant_name, 
                             COALESCE(dm.content, 'forward') as zone_type,
-                            (SELECT COUNT(*) FROM records r WHERE r.domain_id = d.id) as record_count
+                            (SELECT COUNT(*) FROM records r WHERE r.domain_id = d.id) as record_count,
+                            dt.created_at as domain_created,
+                            (SELECT COUNT(*) FROM cryptokeys ck WHERE ck.domain_id = d.id AND ck.active = 1) as dnssec_enabled
                      FROM domains d 
                      JOIN domain_tenants dt ON d.id = dt.domain_id 
                      LEFT JOIN tenants t ON dt.tenant_id = t.id
                      LEFT JOIN domainmetadata dm ON d.id = dm.domain_id AND dm.kind = 'zone-type'
                      WHERE dt.tenant_id IN ($placeholders) $searchClause $zoneTypeClause
-                     ORDER BY d.$sortBy $sortOrder
+                     ORDER BY $orderExpr
                      LIMIT ? OFFSET ?",
                     array_merge($params, [$limit, $offset])
                 );
@@ -113,41 +158,38 @@ try {
     $error = 'Error loading zones: ' . $e->getMessage();
 }
 
-// Generate pagination URL
-function buildZonesPaginationUrl($page, $params = []) {
-    $defaults = [
-        'page' => 'zone_manage',
-        'page_num' => $page,
-        'search' => $_GET['search'] ?? '',
-        'zone_type' => $_GET['zone_type'] ?? '',
-        'tenant_filter' => $_GET['tenant_filter'] ?? '',
-        'sort_by' => $_GET['sort_by'] ?? 'name',
-        'sort_order' => $_GET['sort_order'] ?? 'ASC'
-    ];
-    
-    $urlParams = array_merge($defaults, $params);
-    return '?' . http_build_query(array_filter($urlParams));
-}
 
 // Calculate pagination
 $totalPages = ceil($totalCount / $limit);
 $startRecord = $offset + 1;
 $endRecord = min($offset + $limit, $totalCount);
 
+// Shared base query string for pagination & sorting (replaces removed buildZonesPaginationUrl())
+$paginationParams = [
+    'page' => 'zone_manage',
+    'search' => $search,
+    'zone_type' => $zoneTypeFilter,
+    'tenant_filter' => $tenantFilter,
+    'sort_by' => $sortBy,
+    'sort_order' => $sortOrder,
+    'limit' => $limit
+];
+$paginationBase = http_build_query(array_filter($paginationParams));
+
 $pageTitle = 'Zone Management';
 include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
+include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
 ?>
 
 <div class="container-fluid mt-4">
     <!-- Breadcrumb Navigation -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <?php if ($isSuperAdmin): ?>
-                <li class="breadcrumb-item"><a href="?page=admin_dashboard">System Administration</a></li>
-            <?php endif; ?>
-            <li class="breadcrumb-item active" aria-current="page">Zone Management</li>
-        </ol>
-    </nav>
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => 'Zones']
+        ], $isSuperAdmin, ['class' => 'mb-4']);
+    ?>
+
+        <?php // Removed top pagination block; will embed miniature controls in table header ?>
 
     <!-- Header -->
     <div class="row mb-4">
@@ -158,7 +200,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <i class="bi bi-globe me-2"></i>
                         Zone Management
                     </h1>
-                    <p class="text-muted mb-0">Manage DNS zones, records, DNSSEC, and Dynamic DNS</p>
+                    <p class="text-muted mb-2">Manage DNS zones, records, DNSSEC, and Dynamic DNS</p>
                 </div>
                 <div class="btn-group">
                     <a href="?page=zone_add" class="btn btn-primary">
@@ -168,6 +210,10 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     <a href="?page=zone_bulk_add" class="btn btn-outline-primary">
                         <i class="bi bi-layers me-1"></i>
                         Bulk Add
+                    </a>
+                    <a href="?page=records_import" class="btn btn-outline-secondary">
+                        <i class="bi bi-upload me-1"></i>
+                        Import CSV
                     </a>
                 </div>
             </div>
@@ -240,12 +286,45 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 
     <!-- Zone List -->
     <div class="card">
-        <div class="card-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">
-                    <i class="bi bi-list-ul me-2"></i>
-                    Zones (<?php echo number_format($totalCount); ?>)
-                </h5>
+        <div class="card-header py-2">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="d-flex flex-column">
+                    <h5 class="card-title mb-0 d-flex align-items-center">
+                        <i class="bi bi-list-ul me-2"></i>
+                        Zones
+                        <?php if ($totalCount > 0): ?>
+                            <span class="badge bg-secondary ms-2"><?php echo number_format($totalCount); ?></span>
+                        <?php endif; ?>
+                    </h5>
+                    <?php if ($totalCount > 0): ?>
+                        <small class="text-muted mb-0"><?php echo formatCountRange($startRecord, $endRecord, $totalCount, 'zones'); ?></small>
+                    <?php endif; ?>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <?php
+                        $zoneBaseParams = [
+                            'page' => 'zone_manage',
+                            'search' => $search,
+                            'zone_type' => $zoneTypeFilter,
+                            'tenant_filter' => $tenantFilter,
+                            'sort_by' => $sortBy,
+                            'sort_order' => $sortOrder,
+                            'limit' => $limit
+                        ];
+                        renderPerPageForm([
+                            'base_params' => $zoneBaseParams,
+                            'page_param' => 'page_num',
+                            'limit' => $limit,
+                            'limit_options' => [10,25,50,100]
+                        ]);
+                        renderPaginationNav([
+                            'current' => $page_num,
+                            'total_pages' => $totalPages,
+                            'page_param' => 'page_num',
+                            'base_params' => $zoneBaseParams
+                        ]);
+                    ?>
+                </div>
             </div>
         </div>
         <div class="card-body p-0">
@@ -273,22 +352,27 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>
-                                    <a href="<?php echo buildZonesPaginationUrl($page_num, ['sort_by' => 'name', 'sort_order' => $sortBy === 'name' && $sortOrder === 'ASC' ? 'DESC' : 'ASC']); ?>" class="text-decoration-none">
-                                        Zone Name 
-                                        <?php if ($sortBy === 'name'): ?>
-                                            <i class="bi bi-chevron-<?php echo $sortOrder === 'ASC' ? 'up' : 'down'; ?>"></i>
-                                        <?php endif; ?>
-                                    </a>
-                                </th>
-                                <th>Zone Type</th>
-                                <th>Records</th>
-                                <th>Type</th>
+                                <?php
+                                    // Helper to build sortable header links
+                                    function renderZoneHeader($label, $column, $currentSort, $currentOrder, $baseQuery, $pageNum) {
+                                        $nextOrder = ($currentSort === $column && $currentOrder === 'ASC') ? 'DESC' : 'ASC';
+                                        $icon = '';
+                                        if ($currentSort === $column) {
+                                            $icon = ' <i class="bi bi-chevron-' . ($currentOrder === 'ASC' ? 'up' : 'down') . '"></i>';
+                                        }
+                                        $url = '?' . $baseQuery . '&page_num=' . $pageNum . '&sort_by=' . urlencode($column) . '&sort_order=' . $nextOrder;
+                                        echo '<a href="' . htmlspecialchars($url) . '" class="text-decoration-none text-dark">' . htmlspecialchars($label) . $icon . '</a>';
+                                    }
+                                ?>
+                                <th><?php renderZoneHeader('Zone Name','name',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
+                                <th><?php renderZoneHeader('Zone Type','zone_type',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
+                                <th><?php renderZoneHeader('Records','record_count',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
+                                <th><?php renderZoneHeader('Type','type',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <?php if ($isSuperAdmin || count($userTenants) > 1): ?>
-                                <th>Tenant</th>
+                                <th><?php renderZoneHeader('Tenant','tenant_name',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <?php endif; ?>
-                                <th>DNSSEC</th>
-                                <th>Created</th>
+                                <th><?php renderZoneHeader('DNSSEC','dnssec_enabled',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
+                                <th><?php renderZoneHeader('Created','domain_created',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -386,43 +470,16 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 
                 <!-- Pagination -->
                 <?php if ($totalPages > 1): ?>
-                    <div class="card-footer d-flex justify-content-between align-items-center">
-                        <small class="text-muted">
-                            Showing <?php echo number_format($startRecord); ?> to <?php echo number_format($endRecord); ?> 
-                            of <?php echo number_format($totalCount); ?> zones
-                        </small>
-                        <nav aria-label="Zone pagination">
-                            <ul class="pagination pagination-sm mb-0">
-                                <?php if ($page_num > 1): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="<?php echo buildZonesPaginationUrl(1); ?>">First</a>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="<?php echo buildZonesPaginationUrl($page_num - 1); ?>">Previous</a>
-                                    </li>
-                                <?php endif; ?>
-
-                                <?php
-                                $start = max(1, $page_num - 2);
-                                $end = min($totalPages, $page_num + 2);
-                                
-                                for ($i = $start; $i <= $end; $i++):
-                                ?>
-                                    <li class="page-item <?php echo $i === $page_num ? 'active' : ''; ?>">
-                                        <a class="page-link" href="<?php echo buildZonesPaginationUrl($i); ?>"><?php echo $i; ?></a>
-                                    </li>
-                                <?php endfor; ?>
-
-                                <?php if ($page_num < $totalPages): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="<?php echo buildZonesPaginationUrl($page_num + 1); ?>">Next</a>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="<?php echo buildZonesPaginationUrl($totalPages); ?>">Last</a>
-                                    </li>
-                                <?php endif; ?>
-                            </ul>
-                        </nav>
+                    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <small class="text-muted mb-0"><?php echo formatCountRange($startRecord, $endRecord, $totalCount, 'zones'); ?></small>
+                        <?php
+                            renderPaginationNav([
+                                'current' => $page_num,
+                                'total_pages' => $totalPages,
+                                'page_param' => 'page_num',
+                                'base_params' => $zoneBaseParams
+                            ]);
+                        ?>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>
