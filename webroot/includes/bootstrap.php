@@ -36,6 +36,22 @@ ini_set('session.use_strict_mode', 1);
 // Start the session
 session_start();
 
+// CSRF token management (simple session-based implementation)
+if (empty($_SESSION['csrf_token'])) {
+	$_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+
+function csrf_token() {
+	return $_SESSION['csrf_token'] ?? '';
+}
+
+function verify_csrf_token($token) {
+	if (!isset($_SESSION['csrf_token']) || !is_string($token)) {
+		return false;
+	}
+	return hash_equals($_SESSION['csrf_token'], $token);
+}
+
 // Initialize other core classes
 require_once __DIR__ . '/../classes/Encryption.php';
 require_once __DIR__ . '/../classes/Settings.php';
@@ -46,6 +62,8 @@ require_once __DIR__ . '/../classes/Domain.php';
 require_once __DIR__ . '/../classes/Records.php';
 require_once __DIR__ . '/../classes/Nameserver.php';
 require_once __DIR__ . '/../classes/Email.php';
+// Licensing (loaded late so it can use other helpers if needed)
+require_once __DIR__ . '/../classes/LicenseManager.php';
 
 // Apply dynamic timezone from settings (fallback to UTC)
 try {

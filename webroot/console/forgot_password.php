@@ -9,6 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit('Method not allowed');
 }
 
+// CSRF protection
+if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'error' => 'Security token mismatch']);
+    exit;
+}
+
 // Set JSON response header
 header('Content-Type: application/json');
 

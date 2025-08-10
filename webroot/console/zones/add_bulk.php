@@ -1,4 +1,21 @@
 <?php
+// License near-limit warning
+if (class_exists('LicenseManager')) {
+    $ls = LicenseManager::getStatus();
+    if (!$ls['unlimited']) {
+        $row = $db->fetch("SELECT COUNT(*) c FROM domains");
+        $used = (int)($row['c'] ?? 0);
+        $limit = (int)$ls['max_domains'];
+        if ($used >= $limit) {
+            echo '<div class="alert alert-danger d-flex align-items-center" role="alert"><i class="bi bi-exclamation-triangle me-2"></i><div>You have reached your domain limit ('.htmlspecialchars($limit).'). Upgrade your license to add more domains.</div><button type="button" class="btn btn-sm btn-light ms-auto" onclick="showUpgradeModal()">Upgrade</button></div>';
+        } else {
+            $percent = ($limit>0)?($used/$limit*100):0;
+            if ($percent >= 80) {
+                echo '<div class="alert alert-warning d-flex align-items-center" role="alert"><i class="bi bi-exclamation-circle me-2"></i><div>You are nearing your domain limit: '.htmlspecialchars($used).' / '.htmlspecialchars($limit).' ('.round($percent).'%). Consider upgrading.</div><button type="button" class="btn btn-sm btn-outline-dark ms-auto" onclick="showUpgradeModal()">Upgrade</button></div>';
+            }
+        }
+    }
+}
 /**
  * PDNS Console - Bulk Add Domains
  */
@@ -36,6 +53,9 @@ $successCount = 0;
 $totalCount = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Security token mismatch. Please try again.';
+    } else {
     $domainType = $_POST['domain_type'] ?? 'NATIVE';
     $zoneType = $_POST['zone_type'] ?? 'forward';
     $tenantId = null;
@@ -135,6 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
             }
         }
     }
+    }
 }
 
 // Get domain types
@@ -225,6 +246,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     </div>
                     <div class="card-body">
                         <form method="POST" id="bulkDomainForm">
+                            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                             <!-- Zone Type Selection -->
                             <div class="mb-4">
                                 <label class="form-label">

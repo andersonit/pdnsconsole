@@ -157,6 +157,46 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
             </div>
         </div>
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-shrink-0">
+                            <div class="bg-secondary bg-opacity-10 rounded-3 p-3">
+                                <i class="bi bi-shield-lock text-secondary fs-4"></i>
+                            </div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <?php
+                            $licenseStatus = class_exists('LicenseManager') ? LicenseManager::getStatus() : ['license_type'=>'free','max_domains'=>5,'unlimited'=>false];
+                            $countRow = $db->fetch("SELECT COUNT(*) c FROM domains");
+                            $used = (int)($countRow['c'] ?? 0);
+                            $limit = $licenseStatus['unlimited'] ? null : ($licenseStatus['max_domains'] ?? 5);
+                            $percent = ($limit && $limit>0) ? min(100, round(($used/$limit)*100)) : 0;
+                            $label = $licenseStatus['license_type'] === 'commercial' ? ($licenseStatus['unlimited'] ? 'Commercial (Unlimited)' : 'Commercial ('.$limit.')') : 'Free Tier';
+                            ?>
+                            <h6 class="card-title mb-1">License
+                                <?php if (!empty($licenseStatus['integrity']) && !$licenseStatus['integrity']) { echo '<span class="badge bg-danger ms-1" title="Public key integrity check failed">INT</span>'; } ?>
+                            </h6>
+                            <div class="small text-muted mb-1"><?php echo htmlspecialchars($label); ?></div>
+                            <?php if ($limit): ?>
+                                <div class="progress mb-1" style="height:6px;">
+                                    <div class="progress-bar <?php echo $percent>=100?'bg-danger':($percent>=80?'bg-warning':'bg-info'); ?>" role="progressbar" style="width: <?php echo $percent; ?>%" aria-valuenow="<?php echo $percent; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                                </div>
+                                <small class="text-muted"><?php echo $used; ?> / <?php echo $limit; ?> domains (<?php echo $percent; ?>%)</small>
+                            <?php else: ?>
+                                <small class="text-success">Unlimited domains</small>
+                            <?php endif; ?>
+                            <?php if ($licenseStatus['license_type'] === 'free'): ?>
+                                <div class="mt-2">
+                                    <button class="btn btn-sm btn-outline-info" onclick="showUpgradeModal()"><i class="bi bi-arrow-up me-1"></i>Upgrade</button>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Administration Sections - 2x2 Layout -->
@@ -242,6 +282,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <i class="bi bi-journal-text d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">Audit Logs</div>
                                 <small class="text-muted">System activity</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="?page=admin_license" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
+                                <i class="bi bi-shield-lock d-block fs-4 mb-2"></i>
+                                <div class="fw-semibold">License</div>
+                                <small class="text-muted">Key & limits</small>
                             </a>
                         </div>
                     </div>

@@ -190,58 +190,6 @@ CREATE TABLE IF NOT EXISTS audit_log (
     INDEX idx_action (action)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
--- License management
-CREATE TABLE IF NOT EXISTS licenses (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    license_key VARCHAR(255) NOT NULL UNIQUE,
-    license_type ENUM('free', 'commercial') NOT NULL DEFAULT 'free',
-    max_domains INT DEFAULT 5, -- 5 for free, 0 for unlimited commercial
-    contact_email VARCHAR(255),
-    installation_fingerprint VARCHAR(64),
-    activation_count INT DEFAULT 0,
-    max_activations INT DEFAULT 3,
-    license_data TEXT, -- Decoded license information (JSON)
-    is_active BOOLEAN DEFAULT TRUE,
-    last_validated TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NULL, -- NULL for lifetime licenses
-    INDEX idx_license_key (license_key),
-    INDEX idx_license_type (license_type),
-    INDEX idx_fingerprint (installation_fingerprint)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
-
--- License purchases tracking
-CREATE TABLE IF NOT EXISTS license_purchases (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    license_id INT NOT NULL,
-    payment_method VARCHAR(50),
-    payment_id VARCHAR(255), -- Payment processor transaction ID
-    amount DECIMAL(10,2),
-    currency VARCHAR(3) DEFAULT 'USD',
-    purchase_email VARCHAR(255) NOT NULL,
-    billing_name VARCHAR(255),
-    billing_address TEXT,
-    payment_status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
-    INDEX idx_payment_id (payment_id),
-    INDEX idx_purchase_email (purchase_email)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
-
--- License usage tracking
-CREATE TABLE IF NOT EXISTS license_usage (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    license_id INT NOT NULL,
-    tenant_id INT,
-    domain_count INT DEFAULT 0,
-    last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    usage_date DATE DEFAULT (CURRENT_DATE),
-    FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_license_date (license_id, usage_date),
-    INDEX idx_license_usage (license_id, usage_date)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
 -- =============================================================================
 -- PART 4: Handle Existing Installations - Migrate Old Settings
@@ -303,7 +251,6 @@ INSERT IGNORE INTO global_settings (setting_key, setting_value, description, cat
 ('free_domain_limit', '5', 'Maximum domains allowed on free license', 'licensing'),
 ('commercial_license_price', '50', 'Price for commercial license in USD', 'licensing'),
 ('license_enforcement', '1', 'Enable/disable license enforcement (1=enabled, 0=disabled)', 'licensing'),
-('trial_period_days', '30', 'Trial period for commercial features in days', 'licensing'),
 ('license_key_length', '32', 'Length of generated license keys', 'licensing'),
 
 -- Email/SMTP settings

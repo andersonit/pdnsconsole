@@ -54,6 +54,9 @@ $createdRecords = [];
 $failedRecords = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo && isset($_POST['records'])) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Security token mismatch. Please retry.';
+    } else {
     $recordsData = $_POST['records'];
     $db = Database::getInstance();
     
@@ -134,6 +137,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo && isset($_POST['record
     if (!empty($failedRecords)) {
         $failedCount = count($failedRecords);
         $bulkError = "$failedCount record" . ($failedCount > 1 ? 's' : '') . " failed to create. See details below.";
+    }
     }
 }
 
@@ -287,6 +291,8 @@ $pageTitle = 'Bulk Add DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name']
                     </div>
                     <div class="card-body">
                         <form method="POST" id="bulkAddForm">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
                             <div class="table-responsive">
                                 <table class="table table-bordered" id="recordsTable">
                                     <thead class="table-light">

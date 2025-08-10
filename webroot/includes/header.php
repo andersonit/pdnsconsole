@@ -279,8 +279,11 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     </script>
     
     <!-- CSRF Token Meta Tag -->
-    <?php if (isset($csrfToken)): ?>
-    <meta name="csrf-token" content="<?php echo $csrfToken; ?>">
+    <?php 
+    // Ensure CSRF token meta tag is always present after bootstrap
+    $headerCsrf = isset($csrfToken) ? $csrfToken : (function_exists('csrf_token') ? csrf_token() : '');
+    if (!empty($headerCsrf)): ?>
+        <meta name="csrf-token" content="<?php echo htmlspecialchars($headerCsrf); ?>">
     <?php endif; ?>
 </head>
 <body<?php if ($bodyClasses): ?> class="<?php echo $bodyClasses; ?>"<?php endif; ?>>
@@ -328,6 +331,9 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
                     </a></li>
                     <li><a class="dropdown-item" href="?page=admin_settings">
                         <i class="bi bi-gear me-2"></i>Global Settings
+                    </a></li>
+                    <li><a class="dropdown-item" href="?page=admin_license">
+                        <i class="bi bi-shield-lock me-2"></i>License Management
                     </a></li>
                     <li><a class="dropdown-item" href="?page=admin_audit">
                         <i class="bi bi-clipboard-data me-2"></i>Audit Logs

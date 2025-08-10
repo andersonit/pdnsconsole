@@ -21,6 +21,9 @@ $errorMessage = '';
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $errorMessage = 'Security token mismatch. Please try again.';
+    } else {
     if (isset($_POST['action']) && $_POST['action'] === 'update_branding') {
         $data = [
             'site_name' => trim($_POST['site_name'] ?? ''),
@@ -92,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errorMessage = 'Error updating branding settings: ' . $e->getMessage();
             }
         }
+    }
     }
 }
 
@@ -176,6 +180,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 <div class="card-body">
                     <form method="POST" enctype="multipart/form-data">
                         <input type="hidden" name="action" value="update_branding">
+                        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="current_logo" value="<?php echo htmlspecialchars($branding['site_logo']); ?>">
                         
                         <!-- Site Information -->

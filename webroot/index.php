@@ -91,6 +91,10 @@ if ($page === 'login') {
     $loginSuccess = '';
     
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        // CSRF protection for login (including MFA step)
+        if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+            $loginError = 'Security token mismatch. Please reload the page and try again.';
+        } else {
         $username = trim($_POST['username'] ?? '');
         $password = $_POST['password'] ?? '';
         $mfaCode = trim($_POST['mfa_code'] ?? '');
@@ -180,7 +184,10 @@ if ($page === 'login') {
                 unset($_SESSION['temp_user_data']);
             }
         } else {
-            $loginError = 'Please enter username and password';
+            if (!$loginError) { // Only set if not already CSRF error
+                $loginError = 'Please enter username and password';
+            }
+        }
         }
     }
     
@@ -202,15 +209,10 @@ $pageRoutes = [
     'dashboard' => 'console/dashboard.php',
     'zone_manage' => 'console/zones/manage.php',
     'zones' => 'console/zones/list.php',
-    'domains' => 'console/zones/list.php', // Legacy support
     'zone_add' => 'console/zones/add.php',
-    'domain_add' => 'console/zones/add.php', // Legacy support
     'zone_bulk_add' => 'console/zones/add_bulk.php', 
-    'domain_bulk_add' => 'console/zones/add_bulk.php', // Legacy support
     'zone_edit' => 'console/zones/edit.php',
-    'domain_edit' => 'console/zones/edit.php', // Legacy support
     'zone_delete' => 'console/zones/delete.php',
-    'domain_delete' => 'console/zones/delete.php', // Legacy support
     'zone_dnssec' => 'console/zones/dnssec.php',
     'zone_ddns' => 'console/zones/ddns.php',
     'records' => 'console/records/list.php',
@@ -232,6 +234,7 @@ $pageRoutes = [
     'admin_system' => 'console/admin/system.php',
     'admin_record_types' => 'console/admin/record_types.php',
     'admin_audit' => 'console/admin/audit.php',
+    'admin_license' => 'console/admin/license.php',
 ];
 
 // Check if page exists

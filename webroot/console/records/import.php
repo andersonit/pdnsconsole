@@ -46,8 +46,13 @@ if (isset($_GET['download_template'])) {
 $importResults = [ 'created_zones' => [], 'created_records' => [], 'skipped' => [], 'errors' => [] ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_action']) && empty($error)) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Security token mismatch. Please retry.';
+    } else {
 
-    if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+    if ($error) {
+        // skip processing
+    } elseif (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
         $error = 'CSV upload failed.';
     } else {
         $tmp = $_FILES['csv_file']['tmp_name'];
@@ -126,6 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['import_action']) && e
             if (is_resource($fh)) fclose($fh);
         }
     }
+    }
 }
 
 $pageTitle = 'Import DNS Records (CSV)';
@@ -161,6 +167,7 @@ include __DIR__ . '/../../includes/header.php';
                 <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
             <?php endif; ?>
             <form method="POST" enctype="multipart/form-data" class="mb-4">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
                 <input type="hidden" name="import_action" value="1">
                 <div class="mb-3">
                     <label for="csv_file" class="form-label">CSV File</label>

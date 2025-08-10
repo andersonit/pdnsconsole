@@ -66,6 +66,9 @@ $supportedTypes = $records->getSupportedRecordTypes($zoneType);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $recordInfo) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Security token mismatch. Please retry.';
+    } else {
     $recordName = trim($_POST['record_name'] ?? '');
     $recordType = trim($_POST['record_type'] ?? '');
     $recordContent = trim($_POST['record_content'] ?? '');
@@ -119,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $recordInfo) {
         
     } catch (Exception $e) {
         $error = $e->getMessage();
+    }
     }
 }
 
@@ -196,6 +200,7 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                             </div>
                         <?php else: ?>
                             <form method="POST" id="editRecordForm">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">

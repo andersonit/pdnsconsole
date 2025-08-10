@@ -844,7 +844,7 @@ CREATE TABLE license_usage (
 #### 14.1 Security Measures
 - SQL injection prevention (prepared statements)
 - XSS protection (output escaping)
-- CSRF tokens on all forms
+- CSRF tokens on all forms (centralized session token + verify_csrf_token() implemented across records/admin/zones/auth)
 - Input validation and sanitization
 
 #### 14.2 Authentication Security
@@ -899,11 +899,18 @@ CREATE TABLE license_usage (
 - [x] **Active Theme Switcher**: Functional Bootswatch theme selection system with live preview
 - [x] CLI MFA reset script
 
+#### Legend
+| Symbol | Meaning |
+|--------|---------|
+| [x] | Done |
+| [ ] | Pending / Not Started |
+| [~] | Partial / In Progress |
+
 #### 15.2 Phase 2: Core DNS Management (Weeks 3-4)
 - [x] Dashboard layout with theme support
 - [x] Domain management interface with tenant limits
 - [x] Basic record types (A, AAAA, CNAME, MX, TXT, NS, PTR, SRV) with enhanced validation
-- [x] TXT record validation (SPF, DKIM, DMARC detection and validation)
+- [~] TXT record validation (basic length check only; SPF/DKIM/DMARC semantic validation pending)
 - [x] Input validation system with custom record type support
 - [x] Tenant isolation implementation
 - [x] DNS Records management system with search and filtering
@@ -912,7 +919,6 @@ CREATE TABLE license_usage (
 - [x] Automatic SOA serial number updates
 - [x] Record statistics and pagination
 - [x] Bulk record addition interface
-- [ ] Dashboard with statistics and domain usage
 - [x] **System Administration Dashboard**: Super admin interface with user/tenant management, global settings, and system monitoring
 
 #### 15.3 Phase 3: Advanced Features (Weeks 5-6)
@@ -920,12 +926,12 @@ CREATE TABLE license_usage (
 - [x] **Custom record type management interface** (NAPTR, CAA, TLSA, etc.)
 - [x] **Reverse DNS zone support** (IPv4/IPv6 subnet-based zone creation with .in-addr.arpa/.ip6.arpa)
 - [x] **Zone type filtering** (PTR records only for reverse zones, excluded from forward zones)
-- [x] **Audit logging** (Comprehensive system-wide logging for domains, records, users, tenants, and settings)
-- [ ] Global settings management interface with theme selection
-- [ ] CSV import/export with filtering (no NS/SOA, update existing records)
+- [~] **Audit logging** (Implemented for core actions; expansion for auth events & granular changes pending)
+- [x] Global settings management interface with theme selection (system + DNS + email settings, theme switcher implemented)
+- [~] CSV import/export with filtering (export + import excluding SOA/NS implemented; upsert & dry-run not yet)
 - [ ] Dynamic DNS API endpoints (ddclient compatible, A/AAAA records)
 - [ ] Rate limiting implementation (3/3min, then 1/10min)
-- [ ] Search and filtering
+- [x] Search and filtering (records listing supports type & text search; future: global cross-zone search pending)
 
 #### 15.4 Phase 4: DNSSEC & Polish (Weeks 7-8)
 - [ ] DNSSEC key management (ECDSA P-256, 12-month rotation)
@@ -1271,8 +1277,8 @@ This comprehensive plan incorporates all requirements and clarifications:
 - ECDSA P-256 DNSSEC implementation (Phase 4, 12-month rotation)
 
 **✅ Enhanced Record Management:**
-- Standard DNS record types with comprehensive validation
-- Enhanced TXT record validation for SPF, DKIM, and DMARC records
+- Standard DNS record types with format validation
+- TXT record basic validation (length/pattern); SPF/DKIM/DMARC semantic parsing pending
 - Admin-configurable custom record types (NAPTR, CAA, TLSA, etc.)
 - Regex-based validation patterns for custom types
 - Dynamic form generation based on configured record types
@@ -1330,6 +1336,24 @@ This system will compete directly with expensive SaaS DNS management solutions b
 - Designed as open-source GitHub project
 - Extensible architecture for future front-end integration
 
-**🚀 Ready for Implementation!**
+** Current Priorities:
+- (DONE) CSV export implemented (records/export.php) excluding SOA/NS with headers name,type,content,ttl,prio.
+- (DONE) CSRF token middleware + full form integration across records, admin, zones, auth (login + forgot password).
+- (DONE) Development plan status tagging (legend added; sections updated for accuracy).
+- (IN PROGRESS) CSV import enhancement: add upsert/dry-run + diff (basic create-only import live).
+- (IN PROGRESS) Enhanced TXT parser (currently length + pattern only; SPF/DKIM/DMARC semantics pending).
+- (PENDING) Dynamic DNS API endpoint (token model + ddclient compatibility) & token UI polish.
+- (PENDING) Licensing enforcement hook (domain create/update gating; visual indicators) & limit checks in Domain::createDomain.
+- (PENDING) DNSSEC phase kickoff (key mgmt scaffolding, UI pages, DS export).
+- (PENDING) Rate limiting (login + dynamic DNS) & lockout transparency UI.
+- (PENDING) Expand audit logging (login success/fail granularity, tenant/user/zone events coverage helper abstraction).
+- (PENDING) API validation endpoint (AJAX record validation pre-submit).
+- (PENDING) CSV import dry-run mode + diff summary (ties into upsert task).
 
-The plan is complete and addresses all requirements. No additional clarifications needed - ready to begin development with Phase 1!
+
+** Addtional Add-on Requests
+- Add Comments for records using PowerDNS comments table
+- Ability to add Cloudflare Turnstile code in system settings and if set, use Turnstile on login page
+- Ability to add Google Recaptcha code in system settings and if set, use Recaptcha on login page
+- Add Maintenance Mode switch in system settings to prevent tenants from logging in
+- 

@@ -22,6 +22,9 @@ $db = Database::getInstance();
 
 // Handle POST requests
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $statusMessage = ['type' => 'danger', 'message' => 'Security token mismatch. Please retry.'];
+    } else {
     $action = $_POST['action'] ?? '';
     
     if ($action === 'toggle_type') {
@@ -85,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+}
 }
 
 // Get all custom record types
@@ -324,6 +328,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                                 <input type="hidden" name="action" value="toggle_type">
                                                 <input type="hidden" name="type_id" value="<?php echo $type['id']; ?>">
                                                 <input type="hidden" name="is_active" value="<?php echo $type['is_active'] ? '0' : '1'; ?>">
+                                                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                                                 <button type="submit" class="btn btn-sm <?php echo $type['is_active'] ? 'btn-success' : 'btn-outline-secondary'; ?>">
                                                     <i class="bi bi-<?php echo $type['is_active'] ? 'check-circle' : 'circle'; ?> me-1"></i>
                                                     <?php echo $type['is_active'] ? 'Enabled' : 'Disabled'; ?>
@@ -358,6 +363,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         <div class="modal-content">
             <form method="POST">
                 <input type="hidden" name="action" value="add_type">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="bi bi-plus-circle me-2"></i>
@@ -421,6 +427,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             <form method="POST" id="editTypeForm">
                 <input type="hidden" name="action" value="update_type">
                 <input type="hidden" name="type_id" id="edit_type_id">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="bi bi-pencil me-2"></i>
@@ -459,6 +466,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             <form method="POST" id="deleteTypeForm">
                 <input type="hidden" name="action" value="delete_type">
                 <input type="hidden" name="type_id" id="delete_type_id">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title text-danger">
                         <i class="bi bi-exclamation-triangle me-2"></i>

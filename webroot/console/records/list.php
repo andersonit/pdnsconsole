@@ -29,12 +29,20 @@ if (!empty($action)) {
         case 'edit':
             include 'edit.php';
             return;
-        case 'delete':
-            include 'delete.php';
-            return;
+                case 'delete':
+                    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !verify_csrf_token($_POST['csrf_token'] ?? '')) {
+                        $_SESSION['error'] = 'Security token mismatch. Delete aborted.';
+                        header('Location: ?page=records&domain_id=' . $domainId);
+                        exit;
+                    }
+                    include 'delete.php';
+                    return;
         case 'bulk':
         case 'add_bulk':
             include 'add_bulk.php';
+            return;
+        case 'export':
+            include 'export.php';
             return;
     }
 }
@@ -158,6 +166,16 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
 
 <?php include __DIR__ . '/../../includes/header.php'; ?>
 <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php'; ?>
+
+<?php
+// Passive license integrity notice (non-blocking)
+if (class_exists('LicenseManager')) {
+    $lxStatus = LicenseManager::getStatus();
+    if (isset($lxStatus['integrity']) && !$lxStatus['integrity']) {
+        echo '<div class="alert alert-warning small py-2 mb-3"><i class="bi bi-shield-exclamation me-1"></i> License signature key integrity check failed. System operating in fallback mode.</div>';
+    }
+}
+?>
 
 <div class="container-fluid py-4">
     <!-- Breadcrumb -->
@@ -309,6 +327,9 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                         </a>
                         <a href="?page=zone_ddns&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-info btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Configure Dynamic DNS">
                             <i class="bi bi-arrow-repeat me-1"></i> DDNS
+                        </a>
+                        <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=export" class="btn btn-outline-secondary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Export records to CSV">
+                            <i class="bi bi-download me-1"></i> Export
                         </a>
                         <?php
                             $recordBaseParams = [
@@ -552,6 +573,7 @@ $pageTitle = 'DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form method="POST" action="?page=records&domain_id=<?php echo $domainId; ?>&action=delete" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
                     <input type="hidden" name="record_id" id="deleteRecordId">
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash me-1"></i>

@@ -52,6 +52,9 @@ if ($isSuperAdmin && $domainInfo) {
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Security token mismatch. Please try again.';
+    } else {
     $domainType = $_POST['domain_type'] ?? $domainInfo['type'];
     $account = $_POST['account'] ?? $domainInfo['account'];
     $newTenantId = null;
@@ -123,6 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo) {
     } catch (Exception $e) {
         $error = $e->getMessage();
     }
+    }
 }
 
 // Page title
@@ -187,6 +191,7 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                     </div>
                     <div class="card-body">
                         <form method="POST">
+                            <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">
@@ -372,6 +377,7 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                 <form method="POST" action="?page=zone_delete" class="d-inline" id="deleteDomainForm">
                     <input type="hidden" name="domain_id" id="deleteDomainId">
                     <input type="hidden" name="confirm_value" id="deleteConfirmValue">
+                    <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                     <button type="submit" class="btn btn-danger" id="deleteSubmitBtn" disabled>
                         <i class="bi bi-trash me-1"></i>
                         Delete Domain

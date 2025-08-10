@@ -23,6 +23,9 @@ $success = '';
 
 // Handle domain deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $error = 'Security token mismatch. Please go back and retry.';
+    } else {
     $domainId = intval($_POST['domain_id']);
     $userProvidedConfirm = isset($_POST['confirm_value']) ? trim($_POST['confirm_value']) : '';
     
@@ -85,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
         
     } catch (Exception $e) {
         $error = $e->getMessage();
+    }
     }
 } else {
     $error = 'Invalid request method.';

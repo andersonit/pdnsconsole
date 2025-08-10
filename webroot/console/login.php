@@ -3,8 +3,8 @@
  * PDNS Console - Login Page
  */
 
-// Generate CSRF token for this page load
-$csrfToken = bin2hex(random_bytes(32));
+// Use existing session CSRF token (generated in bootstrap)
+$csrfToken = csrf_token();
 
 // Check if we're in MFA step (temp user session exists)
 $requiresMFA = isset($_SESSION['temp_user_id']);
@@ -23,6 +23,7 @@ if ($themeInfo['effective_dark']) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - <?php echo htmlspecialchars($branding['site_name']); ?></title>
+    <meta name="csrf-token" content="<?php echo htmlspecialchars($csrfToken); ?>">
     
     <!-- Bootstrap CSS -->
     <link href="<?php echo $settings->getThemeUrl(); ?>" rel="stylesheet">
@@ -231,12 +232,13 @@ if ($themeInfo['effective_dark']) {
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Sending...';
             
             // Send AJAX request
+            const csrfMeta = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
             fetch('?page=forgot_password', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: 'reset_email=' + encodeURIComponent(email)
+                body: 'reset_email=' + encodeURIComponent(email) + '&csrf_token=' + encodeURIComponent(csrfMeta)
             })
             .then(response => response.json())
             .then(data => {

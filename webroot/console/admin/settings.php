@@ -22,6 +22,11 @@ $messageType = '';
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // CSRF protection
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $message = 'Security token mismatch. Please try again.';
+        $messageType = 'danger';
+    } else {
     $action = $_POST['action'] ?? '';
     
     try {
@@ -218,9 +223,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Failed to update email settings.');
             }
         }
+
+        if ($action === 'update_license_key') {
+            $newKey = trim($_POST['license_key'] ?? '');
+            $old = $db->fetch("SELECT setting_value FROM global_settings WHERE setting_key='license_key'");
+            $oldVal = $old['setting_value'] ?? '';
+            if ($newKey === '') {
+                // Remove key (revert to free)
+                $db->execute("DELETE FROM global_settings WHERE setting_key='license_key'");
+                if (isset($_SESSION['user_id'])) {
+                    (new AuditLog())->logSettingUpdated($_SESSION['user_id'], 'license_key', $oldVal, '(cleared)');
+                }
+                $message = 'License key removed. System is now in Free mode (5 domains).';
+                $messageType = 'success';
+            } else {
+                // Upsert license key
+                $exists = $oldVal !== '';
+                if ($exists) {
+                    $db->execute("UPDATE global_settings SET setting_value=? WHERE setting_key='license_key'", [$newKey]);
+                } else {
+                    $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('license_key', ?, 'Installed license key', 'licensing')", [$newKey]);
+                }
+                if (class_exists('LicenseManager')) {
+                    // Force cache reset
+                    // Simple approach: instantiate and call getStatus (which repopulates cache); static props will refresh next call
+                    LicenseManager::getStatus();
+                    $status = LicenseManager::getStatus();
+                    if (!$status['valid']) {
+                        $message = 'License key saved but invalid (code ' . htmlspecialchars($status['reason'] ?? 'unknown') . '). Operating in Free mode.';
+                        $messageType = 'warning';
+                    } else {
+                        $message = 'License key validated and saved (' . ($status['license_type'] === 'commercial' ? ($status['unlimited'] ? 'Commercial Unlimited' : 'Commercial Limit: ' . ($status['max_domains'] ?? '')) : 'Free') . ').';
+                        $messageType = 'success';
+                    }
+                } else {
+                    $message = 'License key saved.';
+                    $messageType = 'success';
+                }
+                if (isset($_SESSION['user_id'])) {
+                    (new AuditLog())->logSettingUpdated($_SESSION['user_id'], 'license_key', $oldVal, $newKey);
+                }
+            }
+        }
     } catch (Exception $e) {
         $message = $e->getMessage();
         $messageType = 'danger';
+    }
     }
 }
 
@@ -312,6 +360,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="action" value="update_dns_settings">
                         
                         <div class="mb-3">
@@ -346,6 +395,18 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                     </div>
                                 <?php endfor; ?>
                             </div>
+                                <?php
+                                // License status banner
+                                if (class_exists('LicenseManager')) {
+                                    $licenseStatus = LicenseManager::getStatus();
+                                    $licenseLabel = $licenseStatus['license_type'] === 'commercial' ? ($licenseStatus['unlimited'] ? 'Commercial (Unlimited)' : 'Commercial (' . ($licenseStatus['max_domains'] ?? 'Unlimited') . ' domains)') : 'Free (5 domains)';
+                                    $limitInfo = !$licenseStatus['unlimited'] ? 'Domain limit: ' . ($licenseStatus['max_domains'] ?? 5) : 'No domain limit';
+                                    echo '<div class="row mb-3"><div class="col-12">'
+                                       . '<div class="alert alert-info py-2 px-3"><strong>License:</strong> ' . htmlspecialchars($licenseLabel) . ' &mdash; ' . htmlspecialchars($limitInfo) . '</div>'
+                                       . '</div></div>';
+                                }
+                                ?>
+    
                             <button type="button" class="btn btn-outline-primary btn-sm" id="add-nameserver-btn">
                                 <i class="bi bi-plus-circle me-1"></i>Add Nameserver
                             </button>
@@ -425,6 +486,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="action" value="update_system_settings">
                         
                         <div class="mb-3">
@@ -557,6 +619,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
                 <div class="card-body">
                     <form method="POST">
+                        <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="action" value="update_email_settings">
                         
                         <div class="mb-3">

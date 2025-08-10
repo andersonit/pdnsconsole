@@ -21,8 +21,11 @@ $messageType = '';
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $message = 'Security token mismatch. Please refresh and try again.';
+        $messageType = 'danger';
+    } else {
     $action = $_POST['action'] ?? '';
-    
     try {
         switch ($action) {
             case 'create_user':
@@ -124,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Exception $e) {
         $message = $e->getMessage();
         $messageType = 'danger';
+    }
     }
 }
 
@@ -280,6 +284,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         <div class="modal-content">
             <form method="POST">
                 <input type="hidden" name="action" value="create_user">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">Create New User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -332,6 +337,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             <form method="POST">
                 <input type="hidden" name="action" value="update_user">
                 <input type="hidden" name="user_id" id="edit_user_id">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">Edit User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -388,6 +394,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             <form method="POST">
                 <input type="hidden" name="action" value="reset_password">
                 <input type="hidden" name="user_id" id="reset_user_id">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">Reset Password</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -415,6 +422,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             <form method="POST">
                 <input type="hidden" name="action" value="reset_mfa">
                 <input type="hidden" name="user_id" id="mfa_user_id">
+                <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                 <div class="modal-header">
                     <h5 class="modal-title">Reset Two-Factor Authentication</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

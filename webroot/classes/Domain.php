@@ -235,6 +235,33 @@ class Domain {
         $this->db->beginTransaction();
         
         try {
+            // Global license enforcement (free/commercial limits)
+            if (!class_exists('LicenseManager')) {
+                // Attempt to include if not already loaded
+                $lmPath = __DIR__ . '/LicenseManager.php';
+                if (file_exists($lmPath)) {
+                    require_once $lmPath;
+                }
+            }
+            if (class_exists('LicenseManager')) {
+                $licenseCheck = LicenseManager::canCreateDomain();
+                if (!$licenseCheck['allowed']) {
+                    // Audit log for blocked attempt
+                    if (class_exists('AuditLog')) {
+                        try {
+                            $userId = $_SESSION['user_id'] ?? null;
+                            if ($userId) {
+                                (new AuditLog())->logAction($userId, 'LICENSE_LIMIT_BLOCK', 'domains', null, null, null, null, [
+                                    'attempted_domain' => $name,
+                                    'limit' => $licenseCheck['limit'] ?? null,
+                                    'current_count' => $licenseCheck['current_count'] ?? null
+                                ]);
+                            }
+                        } catch (\Throwable $e) { /* ignore */ }
+                    }
+                    throw new Exception($licenseCheck['message'] ?? 'License domain limit reached');
+                }
+            }
             // Handle reverse zone creation
             if ($zoneType === 'reverse') {
                 if (empty($subnet)) {
