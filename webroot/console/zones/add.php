@@ -1,5 +1,11 @@
 <?php
-// License near-limit warning
+// Ensure database instance is available before any license checks/output
+if (!isset($db)) {
+    $db = Database::getInstance();
+}
+
+// License near-limit warning (captured for later display inside page body)
+$licenseBannerHtml = '';
 if (class_exists('LicenseManager')) {
     $ls = LicenseManager::getStatus();
     if (!$ls['unlimited']) {
@@ -7,11 +13,11 @@ if (class_exists('LicenseManager')) {
         $used = (int)($row['c'] ?? 0);
         $limit = (int)$ls['max_domains'];
         if ($used >= $limit) {
-            echo '<div class="alert alert-danger d-flex align-items-center" role="alert"><i class="bi bi-exclamation-triangle me-2"></i><div>You have reached your domain limit ('.htmlspecialchars($limit).'). Upgrade your license to add more domains.</div><button type="button" class="btn btn-sm btn-light ms-auto" onclick="showUpgradeModal()">Upgrade</button></div>';
+            $licenseBannerHtml = '<div class="alert alert-danger d-flex align-items-center" role="alert"><i class="bi bi-exclamation-triangle me-2"></i><div>You have reached your domain limit ('.htmlspecialchars($limit).'). Upgrade your license to add more domains.</div><a class="btn btn-sm btn-light ms-auto" href="?page=admin_license">Upgrade</a></div>';
         } else {
             $percent = ($limit>0)?($used/$limit*100):0;
             if ($percent >= 80) {
-                echo '<div class="alert alert-warning d-flex align-items-center" role="alert"><i class="bi bi-exclamation-circle me-2"></i><div>You are nearing your domain limit: '.htmlspecialchars($used).' / '.htmlspecialchars($limit).' ('.round($percent).'%). Consider upgrading.</div><button type="button" class="btn btn-sm btn-outline-dark ms-auto" onclick="showUpgradeModal()">Upgrade</button></div>';
+                $licenseBannerHtml = '<div class="alert alert-warning d-flex align-items-center" role="alert"><i class="bi bi-exclamation-circle me-2"></i><div>You are nearing your domain limit: '.htmlspecialchars($used).' / '.htmlspecialchars($limit).' ('.round($percent).'%). Consider upgrading.</div><a class="btn btn-sm btn-outline-dark ms-auto" href="?page=admin_license">Upgrade</a></div>';
             }
         }
     }
@@ -165,6 +171,9 @@ $pageTitle = 'Add DNS Zone';
     ?>
     <div class="row justify-content-center">
         <div class="col-lg-8">
+            <?php if (!empty($licenseBannerHtml)): ?>
+                <div class="mb-3"><?= $licenseBannerHtml; ?></div>
+            <?php endif; ?>
             <!-- Page Header -->
             <div class="mb-4">
                 <h2 class="h4 mb-2">

@@ -1,5 +1,45 @@
 # PDNS Console - Development Plan
 
+> Status Update (2025-08-10)
+
+This document has been updated to reflect current implementation progress and changes in licensing architecture.
+
+Key Completed Since Original Draft:
+- Implemented lightweight offline licensing runtime (no license tables in public schema; uses single `license_key` + `installation_id` rows in `global_settings`).
+- Added `LicenseManager` class: signature verification (RSA SHA256), obfuscated embedded placeholder public key with external file override + integrity flagging.
+- Stable, cluster-safe Installation Code (derived only from persistent `installation_id`) – identical across load-balanced web nodes sharing the DB.
+- Domain creation enforcement (Free = 5 domains; Commercial = configured limit or unlimited when domains=0 in key) with UI near-limit banners and hard stop.
+- Dedicated License Management page (`admin_license`) with status, key entry, installation code copy, purchase button.
+- Dashboard & footer indicators + integrity warning surfaces.
+- Audit logging of license key changes and limit blocks.
+- CLI tool `cli/license_status.php` for quick status inspection.
+- Private `license_admin` toolkit (separate folder) with schema, CLI generator, signer class, and minimal web portal for internal license issuance.
+- Cluster-ready sessions already supported; licensing now compatible with multi-web-server deployments (shared DB).
+
+Decisions / Deviations from Original Plan:
+- Removed in-app license tracking tables (`licenses`, `license_purchases`, `license_usage`) from public distribution: simplifies end-user DB and avoids migration overhead. Tracking moved to private `license_admin` environment.
+- Activation limits & multi-activation tracking deferred (would require public table reintroduction or periodic phoning home). Current model: single offline key per installation (optionally bound via `installation_id`).
+- Trial period logic not implemented (deferred; free tier remains 5 domains until upgrade).
+- Fingerprint now intentionally minimal (only persistent ID) for HA friendliness; anti-piracy relies on key issuance discipline rather than environment hash.
+
+High-Priority Remaining Work:
+1. Dynamic DNS API + token management + rate limiting.
+2. DNSSEC key management (generation, publishing, DS export UI).
+3. Enhanced TXT semantic validation (SPF/DKIM/DMARC parsing & hints).
+4. CSV import: dry-run + diff/upsert reporting.
+5. Expanded audit coverage (auth success/fail, license integrity flag events, API token use).
+6. Rate limiting for login + dynamic DNS endpoints.
+7. Optional license revocation / rotation tooling (signed revocation list or manual flagging in private portal).
+
+Recommended Future Enhancements:
+- Add optional portal-issued signed revocation list ingestion (periodic manual upload) for compromised keys.
+- Provide `LicenseManager::rotateInstallationId()` guarded UI (only when no commercial key or with explicit warning).
+- Add basic telemetry hooks (opt-in) for anonymous feature usage stats (do not include domains or zone names) – helps roadmap alignment.
+- Introduce modular extension system for record validators; ship SPF/DKIM/DMARC as built-ins.
+- Add maintenance mode & CAPTCHA/Turnstile configuration toggles (already noted in add-on requests section).
+
+The phase checklist below has been updated where appropriate.
+
 ## Project Overview
 
 Development of a comprehensive web-based administration interface for PowerDNS with MySQL backend, featuring multi-tenant architecture with role-based access control and commercial licensing.
@@ -881,6 +921,13 @@ CREATE TABLE license_usage (
 
 ### 15. Development Phases
 
+#### Legend
+| Symbol | Meaning |
+|--------|---------|
+| [x] | Done |
+| [ ] | Pending / Not Started |
+| [~] | Partial / In Progress |
+
 #### 15.1 Phase 1: Foundation (Weeks 1-2)
 - [x] **PowerDNS Core Schema**: Implement original PowerDNS tables (domains, records, supermasters, comments, domainmetadata, cryptokeys, tsigkeys)
 - [x] **PDNS Console Schema**: Database schema implementation with all administrative tables (sessions, MFA, custom types, licensing)
@@ -898,13 +945,6 @@ CREATE TABLE license_usage (
 - [x] **Sticky Footer Design**: Full-width footer with system status and branding
 - [x] **Active Theme Switcher**: Functional Bootswatch theme selection system with live preview
 - [x] CLI MFA reset script
-
-#### Legend
-| Symbol | Meaning |
-|--------|---------|
-| [x] | Done |
-| [ ] | Pending / Not Started |
-| [~] | Partial / In Progress |
 
 #### 15.2 Phase 2: Core DNS Management (Weeks 3-4)
 - [x] Dashboard layout with theme support
@@ -945,16 +985,37 @@ CREATE TABLE license_usage (
 ---
 
 #### 15.5 Phase 5: Licensing & Monetization (Weeks 9-10)
-- [ ] RSA key pair generation and public key embedding
-- [ ] License key generation tool (your side) with command-line interface
-- [ ] License validation system implementation with digital signature verification
-- [ ] Installation fingerprinting system for anti-piracy
-- [ ] Domain count enforcement for free tier (5 domain limit)
-- [ ] License activation system with activation limits (max 3 per key)
-- [ ] License management interface with status display and key entry
-- [ ] Domain creation blocking when limits exceeded
-- [ ] License upgrade prompts and commercial pricing display
-- [ ] License recovery and transfer system for customer support
+- [x] RSA key pair workflow (private portal + external public key override; placeholder embedded key obfuscated)
+- [x] License key generation tool (CLI + minimal web portal in private `license_admin/`)
+- [x] Offline license validation system (RSA SHA256 signature, obfuscated public key + integrity check)
+- [x] Installation code (persistent, cluster-safe `installation_id` based)
+- [x] Domain count enforcement (Free = 5 / Commercial = payload domains or unlimited if 0)
+- [ ] Activation limits (deferred; design reconsidered – would reintroduce tracking tables or remote validation)
+- [x] License management interface (dedicated `admin_license` page + dashboard card + dropdown link)
+- [x] Domain creation blocking & near-limit warnings (add & bulk add pages)
+- [x] Upgrade / purchase prompts (license page + dashboard upgrade button)
+- [ ] License recovery / transfer workflow UI (current: manual reissue – document in support guide)
+
+Licensing Implementation Notes:
+- Public schema minimized (only uses `global_settings` rows `license_key`, `installation_id`, and optional enforcement toggle).
+- Private portal schema handles customers/licenses/events; not shipped to end users.
+- Integrity flag surfaces when public key mismatch or placeholder remains without external override.
+- Design favors zero required code changes for upgrading (drop public key file + enter license key).
+
+#### 15.6 Phase 6: Add-on Enhancements (Post GA / Optional)
+Focused hardening, UX, and security add-ons requested after core feature set.
+
+- [ ] Record Comments UI (CRUD) leveraging existing PowerDNS `comments` table (list, add, edit, delete, link to records)
+- [ ] Cloudflare Turnstile integration: system settings keys + login form widget (graceful fallback if unset)
+- [ ] Google reCAPTCHA integration (v2/v3 configurable) via system settings + login form conditional rendering
+- [ ] Maintenance Mode switch (blocks non-super-admin logins; customizable message; bypass via emergency token)
+- [ ] Unified Human Verification Abstraction (select None / Turnstile / reCAPTCHA in settings)
+- [ ] Audit logging for maintenance mode toggles & CAPTCHA challenge failures
+
+Notes:
+- Only one human verification provider active at a time; implement strategy pattern for adapters.
+- Maintenance mode should return 503 status for blocked login attempts (assist external monitoring) and still allow super admin access.
+- Record comments UI ties into existing audit log for create/update/delete events for traceability.
 
 ### 16. Licensing System Architecture
 
@@ -1351,9 +1412,7 @@ This system will compete directly with expensive SaaS DNS management solutions b
 - (PENDING) CSV import dry-run mode + diff summary (ties into upsert task).
 
 
-** Addtional Add-on Requests
-- Add Comments for records using PowerDNS comments table
-- Ability to add Cloudflare Turnstile code in system settings and if set, use Turnstile on login page
-- Ability to add Google Recaptcha code in system settings and if set, use Recaptcha on login page
-- Add Maintenance Mode switch in system settings to prevent tenants from logging in
-- 
+** Additional Add-on Requests (Moved)**
+
+Moved into Phase 6 checklist above.
+

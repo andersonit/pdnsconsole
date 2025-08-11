@@ -82,7 +82,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 
     <!-- Statistics Overview -->
     <div class="row mb-4">
-        <div class="col-xl-3 col-md-6 mb-3">
+        <div class="col-xl-2 col-md-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -101,7 +101,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6 mb-3">
+        <div class="col-xl-2 col-md-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -120,7 +120,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6 mb-3">
+        <div class="col-xl-2 col-md-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -139,7 +139,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             </div>
         </div>
 
-        <div class="col-xl-3 col-md-6 mb-3">
+        <div class="col-xl-2 col-md-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -157,7 +157,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 </div>
             </div>
         </div>
-        <div class="col-xl-3 col-md-6 mb-3">
+        <div class="col-xl-2 col-md-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
@@ -175,10 +175,9 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             $percent = ($limit && $limit>0) ? min(100, round(($used/$limit)*100)) : 0;
                             $label = $licenseStatus['license_type'] === 'commercial' ? ($licenseStatus['unlimited'] ? 'Commercial (Unlimited)' : 'Commercial ('.$limit.')') : 'Free Tier';
                             ?>
-                            <h6 class="card-title mb-1">License
+                            <h6 class="card-title mb-1">License: <?php echo htmlspecialchars($label); ?>
                                 <?php if (!empty($licenseStatus['integrity']) && !$licenseStatus['integrity']) { echo '<span class="badge bg-danger ms-1" title="Public key integrity check failed">INT</span>'; } ?>
                             </h6>
-                            <div class="small text-muted mb-1"><?php echo htmlspecialchars($label); ?></div>
                             <?php if ($limit): ?>
                                 <div class="progress mb-1" style="height:6px;">
                                     <div class="progress-bar <?php echo $percent>=100?'bg-danger':($percent>=80?'bg-warning':'bg-info'); ?>" role="progressbar" style="width: <?php echo $percent; ?>%" aria-valuenow="<?php echo $percent; ?>" aria-valuemin="0" aria-valuemax="100"></div>
@@ -189,7 +188,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <?php endif; ?>
                             <?php if ($licenseStatus['license_type'] === 'free'): ?>
                                 <div class="mt-2">
-                                    <button class="btn btn-sm btn-outline-info" onclick="showUpgradeModal()"><i class="bi bi-arrow-up me-1"></i>Upgrade</button>
+                                    <a class="btn btn-sm btn-outline-info" href="?page=admin_license"><i class="bi bi-arrow-up me-1"></i>Upgrade</a>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -264,6 +263,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </a>
                         </div>
                         <div class="col-6">
+                            <a href="?page=admin_dns_settings" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
+                                <i class="bi bi-globe d-block fs-4 mb-2"></i>
+                                <div class="fw-semibold">DNS Settings</div>
+                                <small class="text-muted">SOA & nameservers</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
                             <a href="?page=admin_branding" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
                                 <i class="bi bi-palette d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">Branding</div>
@@ -278,7 +284,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </a>
                         </div>
                         <div class="col-6">
-                            <a href="?page=admin_audit" class="btn btn-outline-info w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
+                            <a href="?page=admin_audit" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
                                 <i class="bi bi-journal-text d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">Audit Logs</div>
                                 <small class="text-muted">System activity</small>
@@ -289,6 +295,13 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <i class="bi bi-shield-lock d-block fs-4 mb-2"></i>
                                 <div class="fw-semibold">License</div>
                                 <small class="text-muted">Key & limits</small>
+                            </a>
+                        </div>
+                        <div class="col-6">
+                            <a href="?page=admin_email_settings" class="btn btn-outline-success w-100 py-3 d-flex flex-column justify-content-center" style="min-height: 120px;">
+                                <i class="bi bi-envelope d-block fs-4 mb-2"></i>
+                                <div class="fw-semibold">Email Settings</div>
+                                <small class="text-muted">SMTP config</small>
                             </a>
                         </div>
                     </div>
@@ -382,7 +395,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 </tbody>
                             </table>
                         </div>
-                        <div class="text-end mt-3">
+                        <div class="text-center mt-3">
                             <a href="?page=admin_audit" class="btn btn-sm btn-outline-primary">
                                 View Full Audit Log
                             </a>

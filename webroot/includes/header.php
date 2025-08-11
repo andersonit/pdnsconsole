@@ -288,20 +288,21 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
 </head>
 <body<?php if ($bodyClasses): ?> class="<?php echo $bodyClasses; ?>"<?php endif; ?>>
     <!-- Top Navigation -->
-    <nav class="navbar navbar-dark sticky-top bg-dark p-0 shadow">
+    <nav class="navbar navbar-dark sticky-top bg-dark py-1 shadow navbar-main">
         <div class="container-fluid">
-            <a class="navbar-brand px-3" href="?page=dashboard">
+            <?php $brandHome = $user->isSuperAdmin($currentUser['id']) ? 'admin_dashboard' : 'zone_manage'; ?>
+            <a class="navbar-brand d-flex align-items-center px-2" href="?page=<?php echo $brandHome; ?>">
                 <?php if (!empty($branding['site_logo'])): ?>
-                    <img src="<?php echo htmlspecialchars($branding['site_logo']); ?>" alt="Logo" height="30" class="me-2">
+                    <img src="<?php echo htmlspecialchars($branding['site_logo']); ?>" alt="Logo" class="me-2 brand-logo">
                 <?php endif; ?>
-                <?php echo htmlspecialchars($branding['site_name']); ?>
+                <span class="text-truncate brand-text"><?php echo htmlspecialchars($branding['site_name']); ?></span>
             </a>
             
             <div class="dropdown">
                 <a class="nav-link dropdown-toggle text-white px-3 navbar-dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-person me-1"></i>
-                    <?php echo htmlspecialchars($currentUser['username']); ?>
-                </a>
+                     <i class="bi bi-person me-1"></i>
+                     <?php echo htmlspecialchars($currentUser['username']); ?>
+                 </a>
                 <ul class="dropdown-menu dropdown-menu-end">
                     <li><h6 class="dropdown-header">
                         <i class="bi bi-person-circle me-2"></i>
@@ -331,6 +332,12 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
                     </a></li>
                     <li><a class="dropdown-item" href="?page=admin_settings">
                         <i class="bi bi-gear me-2"></i>Global Settings
+                    </a></li>
+                    <li><a class="dropdown-item" href="?page=admin_dns_settings">
+                        <i class="bi bi-globe me-2"></i>DNS Settings
+                    </a></li>
+                    <li><a class="dropdown-item" href="?page=admin_email_settings">
+                        <i class="bi bi-envelope me-2"></i>Email Settings
                     </a></li>
                     <li><a class="dropdown-item" href="?page=admin_license">
                         <i class="bi bi-shield-lock me-2"></i>License Management

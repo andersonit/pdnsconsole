@@ -21,6 +21,9 @@ if (!$isSuperAdmin) {
 $error = '';
 $success = '';
 
+// Page metadata
+$pageTitle = 'Delete Zone';
+
 // Handle domain deletion
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
@@ -95,7 +98,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
 }
 
 ?>
+<?php // Include standard header for styling/theme ?>
+<?php include __DIR__ . '/../../includes/header.php'; ?>
 
+<div class="d-flex flex-column min-vh-100">
+<main class="flex-grow-1">
 <div class="container-fluid py-4">
     <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
         renderBreadcrumb([
@@ -140,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
                             If this zone was referenced by external services or Dynamic DNS clients, update those configurations accordingly.
                         </p>
                         
-                        <div class="mt-4">
+            <div class="mt-4">
                             <a href="?page=zone_manage" class="btn btn-primary me-2">
                                 <i class="bi bi-list-ul me-1"></i>
                                 View All Zones
@@ -149,10 +156,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['domain_id'])) {
                                 <i class="bi bi-plus-circle me-1"></i>
                                 Add New Zone
                             </a>
-                        </div>
+                            </div>
                     </div>
-                </div>
+        </div>
             <?php endif; ?>
         </div>
     </div>
+</div>
+
+</main>
+<?php // Standard footer include placed after main so it sits at bottom ?>
+<?php include __DIR__ . '/../../includes/footer.php'; ?>
 </div>

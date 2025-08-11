@@ -475,6 +475,13 @@ footer {
     text-decoration: none !important;
 }
 
+/* Primary top navbar sizing & spacing (moved from inline styles) */
+.navbar-main { min-height:64px; }
+.navbar-main .navbar-brand { font-size:1.15rem; line-height:1; }
+.navbar-main .navbar-brand .brand-logo { height:40px; max-height:42px; width:auto; }
+.navbar-main .navbar-dropdown-toggle { padding-top:0.35rem; padding-bottom:0.35rem; }
+.navbar-main .brand-text { max-width:220px; line-height:1; }
+
 /* ===== FOOTER SPECIFIC STYLES ===== */
 
 /* Full-width footer styling (revised)

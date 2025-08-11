@@ -83,18 +83,18 @@ include __DIR__ . '/../../includes/header.php';
 ?>
 
 <div class="container-fluid py-4">
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => 'Audit Log']
+        ], true);
+    ?>
     <!-- Page Header -->
     <div class="mb-4">
         <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="d-flex align-items-center">
-                <a href="?page=admin_dashboard" class="btn btn-outline-secondary btn-sm me-3">
-                    <i class="bi bi-arrow-left"></i>
-                </a>
-                <h2 class="h4 mb-0">
-                    <i class="bi bi-file-text me-2 text-info"></i>
-                    System Audit Log
-                </h2>
-            </div>
+            <h2 class="h4 mb-0">
+                <i class="bi bi-file-text me-2 text-info"></i>
+                System Audit Log
+            </h2>
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#filtersModal">
                     <i class="bi bi-funnel me-1"></i>
@@ -106,9 +106,7 @@ include __DIR__ . '/../../includes/header.php';
                 </button>
             </div>
         </div>
-        <p class="text-muted mb-0">
-            Comprehensive system activity log for compliance and security monitoring
-        </p>
+        <p class="text-muted mb-0">Comprehensive system activity log for compliance and security monitoring</p>
     </div>
 
     <?php if (isset($error)): ?>
@@ -414,54 +412,55 @@ include __DIR__ . '/../../includes/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <style>
+                    /* Inline stat tile styles (scoped to modal) */
+                    #statsModal .stat-tile { border-radius:.65rem; padding:1rem .75rem; text-align:center; font-weight:500; position:relative; overflow:hidden; }
+                    #statsModal .stat-tile h4 { font-weight:600; }
+                    #statsModal .stat-tile.primary { background: var(--bs-primary)!important; color:#fff; }
+                    #statsModal .stat-tile.info { background: var(--bs-info)!important; color:#fff; }
+                    #statsModal .stat-tile.success { background: var(--bs-success)!important; color:#fff; }
+                    #statsModal .stat-tile.warning { background: var(--bs-warning)!important; color:#212529!important; }
+                    #statsModal .stat-tile.danger { background: var(--bs-danger)!important; color:#fff; }
+                    #statsModal .stat-tile.secondary { background: var(--bs-secondary)!important; color:#fff; }
+                    #statsModal .stat-tile::after { content:""; position:absolute; inset:0; background:rgba(255,255,255,.05); opacity:0; transition:opacity .2s; }
+                    #statsModal .stat-tile:hover::after { opacity:1; }
+                </style>
                 <?php if (!empty($auditStats)): ?>
                     <div class="row g-3">
-                        <div class="col-md-6">
-                            <div class="card bg-primary text-white">
-                                <div class="card-body text-center">
-                                    <h4 class="mb-1"><?php echo number_format($auditStats['total_actions']); ?></h4>
-                                    <small>Total Actions</small>
-                                </div>
+                        <div class="col-6">
+                            <div class="stat-tile primary shadow-sm">
+                                <h4 class="mb-1"><?php echo number_format($auditStats['total_actions']); ?></h4>
+                                <small>Total Actions</small>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card bg-info text-white">
-                                <div class="card-body text-center">
-                                    <h4 class="mb-1"><?php echo number_format($auditStats['active_users']); ?></h4>
-                                    <small>Active Users</small>
-                                </div>
+                        <div class="col-6">
+                            <div class="stat-tile info shadow-sm">
+                                <h4 class="mb-1"><?php echo number_format($auditStats['active_users']); ?></h4>
+                                <small>Active Users</small>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card bg-success text-white">
-                                <div class="card-body text-center">
-                                    <h4 class="mb-1"><?php echo number_format($auditStats['creates']); ?></h4>
-                                    <small>Creates</small>
-                                </div>
+                        <div class="col-6">
+                            <div class="stat-tile success shadow-sm">
+                                <h4 class="mb-1"><?php echo number_format($auditStats['creates']); ?></h4>
+                                <small>Creates</small>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card bg-warning text-dark">
-                                <div class="card-body text-center">
-                                    <h4 class="mb-1"><?php echo number_format($auditStats['updates']); ?></h4>
-                                    <small>Updates</small>
-                                </div>
+                        <div class="col-6">
+                            <div class="stat-tile warning shadow-sm">
+                                <h4 class="mb-1"><?php echo number_format($auditStats['updates']); ?></h4>
+                                <small>Updates</small>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card bg-danger text-white">
-                                <div class="card-body text-center">
-                                    <h4 class="mb-1"><?php echo number_format($auditStats['deletes']); ?></h4>
-                                    <small>Deletes</small>
-                                </div>
+                        <div class="col-6">
+                            <div class="stat-tile danger shadow-sm">
+                                <h4 class="mb-1"><?php echo number_format($auditStats['deletes']); ?></h4>
+                                <small>Deletes</small>
                             </div>
                         </div>
-                        <div class="col-md-6">
-                            <div class="card bg-secondary text-white">
-                                <div class="card-body text-center">
-                                    <h4 class="mb-1"><?php echo number_format($auditStats['logins']); ?></h4>
-                                    <small>Logins</small>
-                                </div>
+                        <div class="col-6">
+                            <div class="stat-tile secondary shadow-sm">
+                                <h4 class="mb-1"><?php echo number_format($auditStats['logins']); ?></h4>
+                                <small>Logins</small>
                             </div>
                         </div>
                     </div>

@@ -191,22 +191,28 @@ $pageTitle = 'User Profile';
 <?php include __DIR__ . '/../includes/header.php'; ?>
 
 <div class="container-fluid py-4">
+    <?php
+        // Breadcrumb: if super admin prepend System Administration link (handled by helper)
+        // Decide root link/label for non-super admin (tenant admin) -> Zones, else just Profile under System Administration
+        $isSuper = $user->isSuperAdmin($currentUser['id']);
+        include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        if ($isSuper) {
+            // Single item breadcrumb; helper will prepend System Administration automatically
+            renderBreadcrumb([
+                ['label' => 'Profile']
+            ], true);
+        } else {
+            // No system admin prefix; show Zones -> Profile for tenant / regular users
+            renderBreadcrumb([
+                ['label' => 'Zones', 'url' => '?page=zone_manage'],
+                ['label' => 'Profile']
+            ], false, ['prependSystemAdmin' => false]);
+        }
+    ?>
     <!-- Page Header -->
     <div class="mb-4">
-        <div class="d-flex align-items-center justify-content-between mb-2">
-            <div class="d-flex align-items-center">
-                <a href="?page=dashboard" class="btn btn-outline-secondary btn-sm me-3">
-                    <i class="bi bi-arrow-left"></i>
-                </a>
-                <h2 class="h4 mb-0">
-                    <i class="bi bi-person-circle me-2 text-primary"></i>
-                    User Profile
-                </h2>
-            </div>
-        </div>
-        <p class="text-muted mb-0">
-            Manage your account settings, security options, and profile information
-        </p>
+        <h1 class="h4 mb-1"><i class="bi bi-person-circle me-2 text-primary"></i>User Profile</h1>
+        <p class="text-muted mb-0">Manage your account settings, security options, and profile information</p>
     </div>
 
     <?php if (!empty($success)): ?>

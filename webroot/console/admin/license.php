@@ -101,5 +101,22 @@ include $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
    </div>
   </div>
  </div>
+    <div class="col-12 mt-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-transparent border-0"><h6 class="mb-0"><i class="bi bi-arrow-up-right-circle me-2"></i>Why Upgrade?</h6></div>
+            <div class="card-body">
+                <p class="mb-2">Unlock the full power of PDNS Console with a Commercial License:</p>
+                <ul class="mb-3 small">
+                    <li>Unlimited domains (remove the 5-domain free tier cap)</li>
+                    <li>Advanced DNSSEC management (key lifecycle, DS export)</li>
+                    <li>Priority support & faster issue turnaround</li>
+                    <li>White-label and branding enhancements</li>
+                    <li>Multi-tenant scalability & advanced usage reports</li>
+                </ul>
+                <p class="small text-muted mb-2">Your license is validated locally (offline) – no external calls. Upgrading requires only pasting the key here.</p>
+                <a href="https://pdnsconsole.com" target="_blank" rel="noopener" class="small">Learn more at pdnsconsole.com</a>
+            </div>
+        </div>
+    </div>
 </div>
 <?php include $_SERVER['DOCUMENT_ROOT'].'/includes/footer.php'; ?>

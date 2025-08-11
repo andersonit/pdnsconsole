@@ -14,8 +14,8 @@ require_once __DIR__ . '/../classes/Settings.php';
         document.addEventListener('DOMContentLoaded', function() {
             const alerts = document.querySelectorAll('.alert');
             alerts.forEach(function(alert) {
-                // Only auto-dismiss success/info alerts that are NOT inside a modal
-                if (!alert.closest('.modal') && (alert.classList.contains('alert-success') || alert.classList.contains('alert-info'))) {
+                // Only auto-dismiss success/info alerts that are NOT inside a modal and not marked persistent
+                if (!alert.classList.contains('alert-static') && !alert.closest('.modal') && (alert.classList.contains('alert-success') || alert.classList.contains('alert-info'))) {
                     setTimeout(function() {
                         if (document.body.contains(alert)) {
                             const bsAlert = new bootstrap.Alert(alert);
@@ -143,7 +143,7 @@ require_once __DIR__ . '/../classes/Settings.php';
                 <div class="col-md-6 text-end">
                     <?php if (!empty($licenseStatus) && $licenseStatus['license_type'] === 'free'): ?>
                         <small>
-                            <a href="#" class="text-decoration-none text-info" onclick="showUpgradeModal()">
+                            <a href="?page=admin_license" class="text-decoration-none text-info">
                                 <i class="bi bi-arrow-up me-1"></i>
                                 Upgrade to Commercial
                             </a>

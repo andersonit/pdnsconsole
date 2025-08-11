@@ -100,17 +100,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo) {
                 $db->commit();
                 
                 // Log the tenant change
-                $db->execute(
-                    "INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values, ip_address) 
-                     VALUES (?, 'domain_tenant_change', 'domain_tenants', ?, ?, ?, ?)",
-                    [
-                        $currentUser['user_id'],
-                        $domainId,
-                        json_encode(['old_tenant_id' => $domainInfo['tenant_id']]),
-                        json_encode(['new_tenant_id' => $newTenantId]),
-                        $_SERVER['REMOTE_ADDR'] ?? ''
-                    ]
-                );
+                    $db->execute(
+                        "INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values, ip_address) 
+                         VALUES (?, 'domain_tenant_change', 'domain_tenants', ?, ?, ?, ?)",
+                        [
+                            $currentUser['id'],
+                            $domainId,
+                            json_encode(['old_tenant_id' => $domainInfo['tenant_id']]),
+                            json_encode(['new_tenant_id' => $newTenantId]),
+                            $_SERVER['REMOTE_ADDR'] ?? ''
+                        ]
+                    );
                 
             } catch (Exception $e) {
                 $db->rollback();

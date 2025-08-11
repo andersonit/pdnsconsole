@@ -72,6 +72,18 @@ $currentPage = $_GET['page'] ?? 'dashboard';
                         Settings
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo $currentPage === 'admin_dns_settings' ? 'active' : ''; ?>" href="?page=admin_dns_settings">
+                        <i class="fas fa-sitemap me-2"></i>
+                        DNS Settings
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link <?php echo $currentPage === 'admin_email_settings' ? 'active' : ''; ?>" href="?page=admin_email_settings">
+                        <i class="fas fa-envelope me-2"></i>
+                        Email Settings
+                    </a>
+                </li>
                 
                 <li class="nav-item">
                     <a class="nav-link <?php echo $currentPage === 'admin_record_types' ? 'active' : ''; ?>" href="?page=admin_record_types">

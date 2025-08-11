@@ -21,6 +21,30 @@ $user = new User();
 $records = new Records();
 $domainObj = new Domain();
 
+// License usage banner (for domain creation context during import)
+$licenseBannerHtml = '';
+if (class_exists('LicenseManager')) {
+    try {
+        $ls = LicenseManager::getStatus();
+        if (!$ls['unlimited']) {
+            $db = Database::getInstance();
+            $row = $db->fetch("SELECT COUNT(*) c FROM domains");
+            $used = (int)($row['c'] ?? 0);
+            $limit = (int)$ls['max_domains'];
+            if ($limit > 0) {
+                if ($used >= $limit) {
+                    $licenseBannerHtml = '<div class="alert alert-danger d-flex align-items-center" role="alert"><i class="bi bi-exclamation-triangle me-2"></i><div><strong>Domain Limit Reached:</strong> You have reached your domain limit (' . htmlspecialchars($limit) . '). The import will still add records to existing zones, but any new zones in the CSV will be skipped. Consider upgrading your license.</div><a class="btn btn-sm btn-light ms-auto" href="?page=admin_license">Upgrade</a></div>';
+                } else {
+                    $percent = $used / $limit * 100;
+                    if ($percent >= 80) {
+                        $licenseBannerHtml = '<div class="alert alert-warning d-flex align-items-center" role="alert"><i class="bi bi-exclamation-circle me-2"></i><div>You are nearing your domain limit: ' . htmlspecialchars($used) . ' / ' . htmlspecialchars($limit) . ' (' . round($percent) . '%). New zones from the CSV will count toward this limit.</div><a class="btn btn-sm btn-outline-dark ms-auto" href="?page=admin_license">Upgrade</a></div>';
+                    }
+                }
+            }
+        }
+    } catch (Throwable $e) { /* ignore banner issues */ }
+}
+
 $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 $tenantId = null;
 if (!$isSuperAdmin) {
@@ -149,6 +173,9 @@ include __DIR__ . '/../../includes/header.php';
     <div class="row">
         <div class="col-lg-10 mx-auto">
             <h2 class="h4 mb-3"><i class="bi bi-upload me-2 text-primary"></i>Import DNS Records (CSV)</h2>
+            <?php if (!empty($licenseBannerHtml)): ?>
+                <div class="mb-3"><?= $licenseBannerHtml; ?></div>
+            <?php endif; ?>
             <div class="info-panel mb-3">
                 <div class="info-panel-title"><i class="bi bi-info-circle"></i>How it works</div>
                 <div class="info-panel-body">

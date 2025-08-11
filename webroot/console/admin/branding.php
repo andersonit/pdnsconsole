@@ -129,24 +129,19 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
 
 <div class="container-fluid mt-4">
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => 'Branding']
+        ], true);
+    ?>
     <!-- Page Header -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-0">
-                        <i class="bi bi-palette me-2"></i>
-                        Branding Configuration
-                    </h1>
-                    <p class="text-muted mb-0">Customize your PDNS Console appearance and branding</p>
-                </div>
-                <div>
-                    <a href="/?page=admin_dashboard" class="btn btn-outline-secondary">
-                        <i class="bi bi-arrow-left me-1"></i>
-                        Back to Admin
-                    </a>
-                </div>
-            </div>
+            <h1 class="h3 mb-1">
+                <i class="bi bi-palette me-2"></i>
+                Branding Configuration
+            </h1>
+            <p class="text-muted mb-0">Customize your PDNS Console appearance and branding</p>
         </div>
     </div>
 
