@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         
     if ($action === 'update_system_settings') {
+            $oldMaint = $settings->get('maintenance_mode', '0');
             $systemSettings = [
                 'session_timeout' => intval($_POST['session_timeout'] ?? 3600),
                 'max_login_attempts' => intval($_POST['max_login_attempts'] ?? 5),
@@ -38,8 +39,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'records_per_page' => intval($_POST['records_per_page'] ?? 25),
                 'timezone' => trim($_POST['timezone'] ?? 'UTC'),
                 'max_upload_size' => intval($_POST['max_upload_size'] ?? 5242880),
-        'allowed_logo_types' => trim($_POST['allowed_logo_types'] ?? 'image/jpeg,image/png,image/gif')
+                'dnssec_hold_period_days' => intval($_POST['dnssec_hold_period_days'] ?? 7),
+                'allowed_logo_types' => trim($_POST['allowed_logo_types'] ?? 'image/jpeg,image/png,image/gif'),
+                'maintenance_mode' => isset($_POST['maintenance_mode']) ? '1' : '0'
             ];
+
+            // Save CAPTCHA settings
+            $captcha_provider = $_POST['captcha_provider'] ?? 'none';
+            $recaptcha_site_key = trim($_POST['recaptcha_site_key'] ?? '');
+            $recaptcha_secret_key = trim($_POST['recaptcha_secret_key'] ?? '');
+            $turnstile_site_key = trim($_POST['turnstile_site_key'] ?? '');
+            $turnstile_secret_key = trim($_POST['turnstile_secret_key'] ?? '');
+
+            $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('captcha_provider', ?, 'Login CAPTCHA provider', 'security') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$captcha_provider]);
+            $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('recaptcha_site_key', ?, 'Google reCAPTCHA site key', 'security') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$recaptcha_site_key]);
+            $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('recaptcha_secret_key', ?, 'Google reCAPTCHA secret key', 'security') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$recaptcha_secret_key]);
+            $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('turnstile_site_key', ?, 'Cloudflare Turnstile site key', 'security') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$turnstile_site_key]);
+            $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('turnstile_secret_key', ?, 'Cloudflare Turnstile secret key', 'security') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$turnstile_secret_key]);
 
         // PowerDNS API optional settings
             $pdnsApiHost = trim($_POST['pdns_api_host'] ?? '');
@@ -91,12 +107,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Invalid PowerDNS Server ID.');
             }
 
+            // Validate DNSSEC hold period (1-60 days reasonable)
+            if ($systemSettings['dnssec_hold_period_days'] < 1 || $systemSettings['dnssec_hold_period_days'] > 60) {
+                throw new Exception('DNSSEC hold period must be between 1 and 60 days.');
+            }
+
             // Update all system settings
             foreach ($systemSettings as $key => $value) {
                 $db->execute(
                     "UPDATE global_settings SET setting_value = ? WHERE setting_key = ?",
                     [$value, $key]
                 );
+            }
+
+            // Audit maintenance toggle explicitly if changed
+            if (($oldMaint === '1' && $systemSettings['maintenance_mode'] === '0') || ($oldMaint === '0' && $systemSettings['maintenance_mode'] === '1')) {
+                $audit = $audit ?? new AuditLog();
+                if (isset($_SESSION['user_id'])) {
+                    $audit->logMaintenanceToggle($_SESSION['user_id'], $systemSettings['maintenance_mode'] === '1', $oldMaint === '1');
+                    $audit->logSettingUpdated($_SESSION['user_id'], 'maintenance_mode', $oldMaint, $systemSettings['maintenance_mode']);
+                }
             }
 
             // Upsert PowerDNS API host/port (empty host clears both host and key)
@@ -184,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get current system settings
 $systemSettings = [];
-$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types', 'pdns_api_host', 'pdns_api_port', 'pdns_api_server_id', 'pdns_api_key_enc'];
+$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types', 'dnssec_hold_period_days', 'maintenance_mode', 'pdns_api_host', 'pdns_api_port', 'pdns_api_server_id', 'pdns_api_key_enc'];
 
 foreach ($systemKeys as $key) {
     $setting = $db->fetch(
@@ -193,6 +223,13 @@ foreach ($systemKeys as $key) {
     );
     $systemSettings[$key] = $setting['setting_value'] ?? '';
 }
+
+// Fetch CAPTCHA settings with safe defaults
+$captcha_provider = $settings->get('captcha_provider', 'none');
+$recaptcha_site_key = $settings->get('recaptcha_site_key', '');
+$recaptcha_secret_key = $settings->get('recaptcha_secret_key', '');
+$turnstile_site_key = $settings->get('turnstile_site_key', '');
+$turnstile_secret_key = $settings->get('turnstile_secret_key', '');
 
 // Decrypt API key for masked display (never show full key)
 $pdnsApiKeyMasked = '';
@@ -356,6 +393,69 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <input type="hidden" id="allowed_logo_types" name="allowed_logo_types" value="<?php echo htmlspecialchars($systemSettings['allowed_logo_types']); ?>">
                             <small class="text-muted">Select which file types are allowed for logo uploads</small>
                         </div>
+                        <div class="mb-3">
+                            <label for="dnssec_hold_period_days" class="form-label">DNSSEC Timed Rollover Hold (days)</label>
+                            <input type="number" class="form-control" id="dnssec_hold_period_days" name="dnssec_hold_period_days" value="<?php echo htmlspecialchars($systemSettings['dnssec_hold_period_days'] ?: '7'); ?>" min="1" max="60">
+                            <small class="text-muted">Days to keep both old and new keys active during a timed rollover before retiring the old key. Align with parent DS TTL.</small>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="maintenance_mode" name="maintenance_mode" value="1" <?php echo ($systemSettings['maintenance_mode'] ?? '0') === '1' ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="maintenance_mode">Maintenance Mode</label>
+                            <div class="form-text">When enabled, only super administrators can log in. All other login attempts are blocked with a 503 response and a notice on the login page.</div>
+                        </div>
+                        <hr>
+                        <h6 class="fw-semibold mb-3"><i class="bi bi-key me-1"></i>Login CAPTCHA / Human Verification</h6>
+                        <div class="mb-3">
+                            <label class="form-label">CAPTCHA Provider</label>
+                            <select class="form-select" name="captcha_provider" id="captcha_provider">
+                                <option value="none" <?php if ($captcha_provider === 'none') echo 'selected'; ?>>None</option>
+                                <option value="turnstile" <?php if ($captcha_provider === 'turnstile') echo 'selected'; ?>>Cloudflare Turnstile</option>
+                                <option value="recaptcha" <?php if ($captcha_provider === 'recaptcha') echo 'selected'; ?>>Google reCAPTCHA</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="recaptcha_keys" style="display: <?php echo ($captcha_provider === 'recaptcha') ? 'block' : 'none'; ?>;">
+                            <label class="form-label">reCAPTCHA Site Key</label>
+                            <input type="text" class="form-control" name="recaptcha_site_key" value="<?php echo htmlspecialchars($recaptcha_site_key); ?>">
+                            <label class="form-label mt-2">reCAPTCHA Secret Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" name="recaptcha_secret_key" id="recaptcha_secret_key" value="<?php echo htmlspecialchars($recaptcha_secret_key); ?>">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleRecaptchaSecret"><i class="bi bi-eye"></i></button>
+                            </div>
+                        </div>
+                        <div class="mb-3" id="turnstile_keys" style="display: <?php echo ($captcha_provider === 'turnstile') ? 'block' : 'none'; ?>;">
+                            <label class="form-label">Turnstile Site Key</label>
+                            <input type="text" class="form-control" name="turnstile_site_key" value="<?php echo htmlspecialchars($turnstile_site_key); ?>">
+                            <label class="form-label mt-2">Turnstile Secret Key</label>
+                            <div class="input-group">
+                                <input type="password" class="form-control" name="turnstile_secret_key" id="turnstile_secret_key" value="<?php echo htmlspecialchars($turnstile_secret_key); ?>">
+                                <button class="btn btn-outline-secondary" type="button" id="toggleTurnstileSecret"><i class="bi bi-eye"></i></button>
+                            </div>
+                        </div>
+                        <script>
+                        document.getElementById('captcha_provider').addEventListener('change', function() {
+                            document.getElementById('recaptcha_keys').style.display = (this.value === 'recaptcha') ? 'block' : 'none';
+                            document.getElementById('turnstile_keys').style.display = (this.value === 'turnstile') ? 'block' : 'none';
+                        });
+
+                        // Toggle show/hide for secret keys
+                        function setupSecretToggle(inputId, btnId) {
+                            var input = document.getElementById(inputId);
+                            var btn = document.getElementById(btnId);
+                            if (input && btn) {
+                                btn.addEventListener('click', function() {
+                                    if (input.type === 'password') {
+                                        input.type = 'text';
+                                        btn.innerHTML = '<i class="bi bi-eye-slash"></i>';
+                                    } else {
+                                        input.type = 'password';
+                                        btn.innerHTML = '<i class="bi bi-eye"></i>';
+                                    }
+                                });
+                            }
+                        }
+                        setupSecretToggle('recaptcha_secret_key', 'toggleRecaptchaSecret');
+                        setupSecretToggle('turnstile_secret_key', 'toggleTurnstileSecret');
+                        </script>
                         
                         <div class="mb-4">
                             <hr>

@@ -186,12 +186,22 @@ class Settings {
      * Get email/SMTP settings
      */
     public function getEmailSettings() {
+        $encryption = new Encryption();
+        $rawPassword = $this->get('smtp_password', '');
+        $decryptedPassword = '';
+        if (!empty($rawPassword)) {
+            try {
+                $decryptedPassword = $encryption->decrypt($rawPassword);
+            } catch (\Throwable $e) {
+                $decryptedPassword = '';
+            }
+        }
         return [
             'smtp_host' => $this->get('smtp_host', 'smtp.example.com'),
             'smtp_port' => (int)$this->get('smtp_port', 587),
             'smtp_secure' => $this->get('smtp_secure', 'tls'),
             'smtp_username' => $this->get('smtp_username', ''),
-            'smtp_password' => $this->get('smtp_password', ''),
+            'smtp_password' => $decryptedPassword,
             'smtp_from_email' => $this->get('smtp_from_email', 'noreply@example.com'),
             'smtp_from_name' => $this->get('smtp_from_name', 'PDNS Console')
         ];
@@ -201,8 +211,12 @@ class Settings {
      * Update email settings
      */
     public function updateEmailSettings($settings) {
+        $encryption = new Encryption();
         foreach ($settings as $key => $value) {
             if (strpos($key, 'smtp_') === 0) {
+                if ($key === 'smtp_password') {
+                    $value = !empty($value) ? $encryption->encrypt($value) : '';
+                }
                 $this->set($key, $value, null, 'email');
             }
         }
@@ -236,19 +250,7 @@ class Settings {
         ];
     }
     
-    /**
-     * Get licensing settings
-     */
-    public function getLicensingSettings() {
-        return [
-            'license_mode' => $this->get('license_mode', 'freemium'),
-            'free_domain_limit' => (int)$this->get('free_domain_limit', 5),
-            'commercial_license_price' => (int)$this->get('commercial_license_price', 50),
-            'license_enforcement' => (bool)$this->get('license_enforcement', true),
-            'trial_period_days' => (int)$this->get('trial_period_days', 30),
-            'license_key_length' => (int)$this->get('license_key_length', 32)
-        ];
-    }
+    // Licensing settings accessor removed to prevent perception of runtime mutability.
     
     /**
      * Get theme CSS URL based on current theme setting

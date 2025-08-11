@@ -301,13 +301,6 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('default_tenant_domains', '0', 'Default maximum domains per tenant (0=unlimited)', 'system'),
 ('records_per_page', '25', 'Number of records to display per page', 'system'),
 
--- License settings
-('license_mode', 'freemium', 'License mode: freemium or commercial', 'licensing'),
-('free_domain_limit', '5', 'Maximum domains allowed on free license', 'licensing'),
-('commercial_license_price', '50', 'Price for commercial license in USD', 'licensing'),
-('license_enforcement', '1', 'Enable/disable license enforcement (1=enabled, 0=disabled)', 'licensing'),
-('license_key_length', '32', 'Length of generated license keys', 'licensing'),
-
 -- Email/SMTP settings
 ('smtp_host', 'smtp.example.com', 'SMTP server hostname', 'email'),
 ('smtp_port', '587', 'SMTP server port (587 for TLS, 465 for SSL, 25 for no encryption)', 'email'),

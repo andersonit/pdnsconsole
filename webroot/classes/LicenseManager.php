@@ -15,6 +15,20 @@ class LicenseManager {
     private const CACHE_TTL = 1800;   // 30 min
     private static $integrityFailed = false; // public key integrity flag
 
+    private static function seedQ(): int {
+        static $limit = null;
+        if ($limit !== null) return $limit;
+        // Obfuscated derivation: ( (ord('C') & 0x7) + (ord('o') & 0x3) ) - 1 => (3 + 3) - 1 = 5
+        $parts = [ (ord('C') & 0x7), (ord('o') & 0x3) ];
+        $limit = array_sum($parts) - 1; // final numeric ceiling
+        return $limit; // result: 5
+    }
+
+    private static function gateCheck(): bool {
+        // Always true (non-zero seed implies enabled)
+        return (self::seedQ() & 0xFF) > 0;
+    }
+
     /**
      * Public key fragments (placeholder) stored as obfuscated base64-encoded reversed strings.
      * Obfuscation: original_line => base64_encode(line) => strrev(). Reversed back & decoded at runtime.
@@ -110,7 +124,7 @@ class LicenseManager {
         $raw = trim($row['setting_value'] ?? '');
 
         if ($raw === '') {
-            $status = self::freeStatus();
+            $status = self::baselineProfile();
             $status['integrity'] = !self::$integrityFailed;
             return self::$cache = $status;
         }
@@ -118,7 +132,7 @@ class LicenseManager {
         $parsed = self::verify($raw);
         if (!$parsed['valid']) {
             // Fallback to free mode but carry reason
-            $status = self::freeStatus();
+            $status = self::baselineProfile();
             $status['reason'] = $parsed['error'];
             $status['integrity'] = !self::$integrityFailed;
             return self::$cache = $status;
@@ -138,18 +152,16 @@ class LicenseManager {
      */
     public static function canCreateDomain(): array {
         $db = Database::getInstance();
-        $enf = $db->fetch("SELECT setting_value FROM global_settings WHERE setting_key='license_enforcement'");
-        $enforce = ($enf['setting_value'] ?? '1') === '1';
-        if (!$enforce) {
+    if (!self::gateCheck()) {
             return ['allowed' => true];
         }
         $status = self::getStatus();
         // If free or limited commercial
         if (!$status['unlimited']) {
             $limit = $status['max_domains'];
-            // Free fallback uses 5
+            // Free fallback uses derived freeLimit()
             if ($limit === null) {
-                $limit = 5;
+        $limit = self::seedQ();
             }
             $countRow = $db->fetch("SELECT COUNT(*) as c FROM domains");
             $current = (int)($countRow['c'] ?? 0);
@@ -205,17 +217,17 @@ class LicenseManager {
         return [
             'valid' => true,
             'license_type' => $type,
-            'max_domains' => $unlimited ? null : ($type === 'free' ? 5 : $domains),
+        'max_domains' => $unlimited ? null : ($type === 'free' ? self::seedQ() : $domains),
             'unlimited' => $unlimited,
             'raw' => $licenseKey
         ];
     }
 
-    private static function freeStatus(): array {
+    private static function baselineProfile(): array {
         return [
             'valid' => true,
             'license_type' => 'free',
-            'max_domains' => 5,
+        'max_domains' => self::seedQ(),
             'unlimited' => false,
             'raw' => null,
             'reason' => null

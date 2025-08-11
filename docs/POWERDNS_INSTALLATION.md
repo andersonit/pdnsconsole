@@ -97,6 +97,7 @@ gmysql-host=127.0.0.1
 gmysql-dbname=powerdns
 gmysql-user=powerdns
 gmysql-password=StrongPdnsPass!
+gmysql-dnssec=yes
 
 # API / Webserver (required for PDNS Console DNSSEC features)
 api=yes
@@ -109,15 +110,8 @@ webserver-allow-from=127.0.0.1
 # Server identity (must match PDNS Console "Server ID" setting)
 server-id=localhost
 
-# (Optional) tighten recursion & security
-recursor=     # leave blank for pure authoritative
-allow-recursion=0.0.0.0/0
-allow-axfr-ips=127.0.0.1
-
-# SOA defaults (console may override per zone)
-default-soa-content=ns1.example.test hostmaster.example.test 0 10800 3600 604800 3600
-
 # Logging (tune to preference)
+# 0=critical only, 1=errors, 2=warnings, 3=notice, 4=info (default), 5=debug, 6=insane (very verbose)
 loglevel=4
 ```
 Restart PowerDNS:

@@ -22,6 +22,10 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle . ' - ' . $branding['site_name']); ?></title>
+    <?php 
+    // Inject DNSSEC hold period meta if available
+    try { $dnssecHold = $settings->get('dnssec_hold_period_days'); if ($dnssecHold) { echo '<meta name="dnssec-hold-days" content="'.htmlspecialchars($dnssecHold).'">'; } } catch (Exception $e) { /* ignore */ }
+    ?>
     
     <!-- Bootstrap CSS Theme -->
     <link href="<?php echo $settings->getThemeUrl(); ?>" rel="stylesheet" id="theme-stylesheet" data-theme="<?php echo htmlspecialchars($settings->getCurrentTheme()); ?>">

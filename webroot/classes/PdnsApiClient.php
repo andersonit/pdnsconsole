@@ -68,16 +68,58 @@ class PdnsApiClient {
      * Enable DNSSEC on a zone (PATCH zone with dnssec: true)
      */
     public function enableDnssec($zoneName) {
+        $path = "/servers/{$this->serverId}/zones/" . urlencode($zoneName);
         $payload = [ 'dnssec' => true ];
-        return $this->request('PATCH', "/servers/{$this->serverId}/zones/" . urlencode($zoneName), $payload);
+        try {
+            return $this->request('PATCH', $path, $payload);
+        } catch (Exception $e) {
+            // PowerDNS versions prior to certain releases require a full PUT for dnssec toggle and reject PATCH with 422
+            if (strpos($e->getMessage(), '422') !== false) {
+                $zone = $this->getZone($zoneName);
+                if (!is_array($zone)) { throw $e; }
+                $putPayload = [
+                    'name' => $zone['name'] ?? $zoneName,
+                    'kind' => $zone['kind'] ?? 'Native',
+                    'masters' => $zone['masters'] ?? [],
+                    'nameservers' => $zone['nameservers'] ?? [],
+                    'dnssec' => true
+                ];
+                // Include optional fields only if present to avoid 422 validation errors
+                foreach (['account','soa_edit_api','soa_edit'] as $opt) {
+                    if (isset($zone[$opt])) { $putPayload[$opt] = $zone[$opt]; }
+                }
+                return $this->request('PUT', $path, $putPayload);
+            }
+            throw $e;
+        }
     }
 
     /**
      * Disable DNSSEC on a zone (PATCH zone with dnssec: false)
      */
     public function disableDnssec($zoneName) {
+        $path = "/servers/{$this->serverId}/zones/" . urlencode($zoneName);
         $payload = [ 'dnssec' => false ];
-        return $this->request('PATCH', "/servers/{$this->serverId}/zones/" . urlencode($zoneName), $payload);
+        try {
+            return $this->request('PATCH', $path, $payload);
+        } catch (Exception $e) {
+            if (strpos($e->getMessage(), '422') !== false) {
+                $zone = $this->getZone($zoneName);
+                if (!is_array($zone)) { throw $e; }
+                $putPayload = [
+                    'name' => $zone['name'] ?? $zoneName,
+                    'kind' => $zone['kind'] ?? 'Native',
+                    'masters' => $zone['masters'] ?? [],
+                    'nameservers' => $zone['nameservers'] ?? [],
+                    'dnssec' => false
+                ];
+                foreach (['account','soa_edit_api','soa_edit'] as $opt) {
+                    if (isset($zone[$opt])) { $putPayload[$opt] = $zone[$opt]; }
+                }
+                return $this->request('PUT', $path, $putPayload);
+            }
+            throw $e;
+        }
     }
 
     /**

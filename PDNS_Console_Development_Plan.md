@@ -1,6 +1,6 @@
 # PDNS Console - Development Plan
 
-> Status Update (2025-08-10)
+> Status Update (2025-08-11)
 
 This document has been updated to reflect current implementation progress and changes in licensing architecture.
 
@@ -16,6 +16,7 @@ Key Completed Since Original Draft:
 - CLI tool `cli/license_status.php` for quick status inspection.
 - Private `license_admin` toolkit (separate folder) with schema, CLI generator, signer class, and minimal web portal for internal license issuance.
 - Cluster-ready sessions already supported; licensing now compatible with multi-web-server deployments (shared DB).
+ - DNSSEC full implementation (see "DNSSEC Implementation Summary" below) including lifecycle, rollover automation, registrar DS verification, UI guidance, and audits.
 
 Decisions / Deviations from Original Plan:
 - Removed in-app license tracking tables (`licenses`, `license_purchases`, `license_usage`) from public distribution: simplifies end-user DB and avoids migration overhead. Tracking moved to private `license_admin` environment.
@@ -23,16 +24,86 @@ Decisions / Deviations from Original Plan:
 - Trial period logic not implemented (deferred; free tier remains 5 domains until upgrade).
 - Fingerprint now intentionally minimal (only persistent ID) for HA friendliness; anti-piracy relies on key issuance discipline rather than environment hash.
 
-High-Priority Remaining Work:
+High-Priority Remaining Work (Post-DNSSEC):
 1. Dynamic DNS API + token management + rate limiting.
-2. DNSSEC key management (generation, publishing, DS export UI).
-3. Enhanced TXT semantic validation (SPF/DKIM/DMARC parsing & hints).
-4. CSV import: dry-run + diff/upsert reporting.
-5. Expanded audit coverage (auth success/fail, license integrity flag events, API token use, comment set/clear actions).
-6. Rate limiting for login + dynamic DNS endpoints.
-7. Optional license revocation / rotation tooling (signed revocation list or manual flagging in private portal).
+2. Enhanced TXT semantic validation (SPF/DKIM/DMARC parsing & hints).
+3. CSV import: dry-run + diff/upsert reporting.
+4. Expanded audit coverage (auth success/fail, license integrity flag events, API token use, comment set/clear actions).
+5. Rate limiting for login + dynamic DNS endpoints.
+6. Optional license revocation / rotation tooling (signed revocation list or manual flagging in private portal).
 
-Recommended Future Enhancements:
+Recently Completed (context – now outside active priorities):
+ - CSV export (records/export.php) excluding SOA/NS.
+ - CSRF token middleware + form integration (records, admin, zones, auth).
+ - Development plan status tagging & legend normalization.
+ - DNSSEC core implementation (enable/disable, key generation modal, rollover modes: Add / Immediate / Timed, cron automation, lifecycle column, safety modals).
+ - DNSSEC DS assistance panel + persistent guidance alert (copy DS, checklist, rollover summary).
+ - Registrar (parent) DS verification feature with caching, per-key Parent status column, tooltips, auto-refresh of stale results, last-check timestamp normalization.
+ - DNSSEC status badge integration on records list & zone listing pages; consistent active cryptokey detection.
+ - Expanded DNSSEC audit events (ENABLE, DISABLE, KEY_CREATE, KEY_ACTIVATE, KEY_DEACTIVATE, KEY_DELETE, KEY_ROLLOVER_START, KEY_ROLLOVER_COMPLETE, RECTIFY) & documentation (`docs/DNSSEC.md`).
+ - Licensing enforcement groundwork & domain gating hooks (baseline in Domain::createDomain; extended checks pending polish).
+
+## DNSSEC Implementation Summary (Finalized)
+
+Status: COMPLETE (2025-08-11) – DNSSEC feature set considered production-ready. Further DNSSEC-related items are classified as future enhancements, not core scope.
+
+Delivered Capabilities:
+1. Zone-Level Enable / Disable with API integration and audit logging.
+2. Key Management UI: generation modal (CSK/KSK/ZSK), algorithm selection (ECDSA, ED25519, RSA variants), conditional key size for RSA.
+3. Rollover Modes:
+  - Add Additional Key (parallel activation)
+  - Immediate Replace (generate & deactivate old)
+  - Timed Rollover (automated retire after configurable hold period via cron).
+4. Automated Lifecycle:
+  - Cron-driven detection of timed rollover completion.
+  - Deactivation-first strategy with grace period before deletion.
+  - Lifecycle / status column (Active, Rollover, Pending Retire, Retire Soon, Inactive + deletion countdown / eligibility).
+5. Safety Controls:
+  - Deactivate / Delete confirmation modals with contextual risk guidance.
+  - Action locking on old keys during timed rollover.
+6. DS Assistance:
+  - DS records panel with copy-all button.
+  - Persistent "Next Step" guidance alert (not auto-dismissed).
+  - Rollover status summary (days remaining) derived from lifecycle.
+7. Parent (Registrar) DS Verification:
+  - On-demand query using Net_DNS2 with 30‑minute stale auto-refresh.
+  - Caching of comparison results in `domainmetadata` (kind `PDNSCONSOLE-DSCHECK`).
+  - Per-key Parent status badges (Published / Partial / Missing / Unknown) with timestamps in tooltips.
+  - Registrar query result panel summarizing published/missing/extra DS lines.
+  - Server-timezone normalized last checked timestamp (consistent UI + tooltips).
+8. UI Enhancements:
+  - DNSSEC status badges added to Records page statistics card (clickable to DNSSEC page) and Zone Management table.
+  - Removal of redundant DS count column; replaced with more explicit Parent status per key.
+9. Auditing:
+  - Comprehensive audit event taxonomy for DNSSEC operations (enable/disable, key lifecycle transitions, rectify, rollover start/complete).
+10. Documentation:
+  - Operational DNSSEC guide (`docs/DNSSEC.md`).
+
+Operational Notes:
+- Implementation leverages native PowerDNS cryptokeys, with conservative rollover to avoid validation breakage.
+- Parent DS verification is read-only DNS query (no registrar API dependencies), minimizing complexity.
+- Staleness logic avoids unnecessary network lookups while surfacing outdated status automatically.
+
+Acceptance Criteria (Met):
+- End-to-end DNSSEC management (enable -> key lifecycle -> DS publication assistance -> rollover -> safe key retirement) executed entirely within UI.
+- Clear operator guidance at each critical step (DS publication, rollover timing, deletion risks).
+- No manual DB manipulation required for standard DNSSEC workflows.
+- Auditable trail of changes for compliance / troubleshooting.
+
+## Future DNSSEC Enhancements (Optional)
+These are not required for baseline DNSSEC functionality and are deferred:
+1. Parent DS publish confirmation workflow (operator sets a "published" acknowledgment flag) & optional enforcement reminders.
+2. DNSKEY export/download convenience (plain text & JSON formats) for registrar submission or archival.
+3. DNSSEC automated test harness (simulation of multi-step timed rollover scenarios + integration tests for cron job correctness).
+4. Extended audit events: parent DS query execution logging (with comparison summary) & potential DS mismatch alerting.
+5. Enhanced visual staleness indicators (badge highlighting or relative age e.g. "42m ago").
+6. Structured DS mismatch remediation suggestions (e.g., identify orphan DS lines, recommend deletion).
+7. Optional integration with external validators (e.g., DNSViz style summary) via pluggable adapter.
+8. Bulk DNSSEC operations (multi-zone enable/rollover scheduling) for large tenant environments.
+
+With the above, DNSSEC is declared COMPLETE for Version 1 scope.
+
+Recommended Future Enhancements (Non-DNSSEC):
 - Add optional portal-issued signed revocation list ingestion (periodic manual upload) for compromised keys.
 - Provide `LicenseManager::rotateInstallationId()` guarded UI (only when no commercial key or with explicit warning).
 - Add basic telemetry hooks (opt-in) for anonymous feature usage stats (do not include domains or zone names) – helps roadmap alignment.
@@ -68,7 +139,7 @@ Development of a comprehensive web-based administration interface for PowerDNS w
 ### 1. Technology Stack
 - **Backend**: PHP 8.x with PDO for database connections
 - **Database**: MySQL (PowerDNS schema)
-- **Frontend**: Bootstrap 5 (already available in assets/)
+- **Frontend**: Bootstrap 5 - Using CDN with standard Bootstrap and Bootswatch themes
 - **Authentication**: Session-based with secure password hashing
 - **Session Storage**: Database-based sessions for HAProxy compatibility
 - **Security**: CSRF protection, input sanitization, SQL prepared statements
@@ -313,8 +384,6 @@ CREATE TABLE audit_log (
     INDEX idx_action (action)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
--- (Removed legacy license management tables in favor of lightweight global_settings storage)
-
 -- Initial global settings data
 INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES
 -- Branding settings
@@ -325,9 +394,9 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('theme_name', 'default', 'Bootstrap theme name (default or bootswatch theme)', 'branding'),
 
 -- DNS settings
-('primary_nameserver', 'dns1.atmyip.com', 'Primary nameserver for new domains', 'dns'),
-('secondary_nameserver', 'dns2.atmyip.com', 'Secondary nameserver for new domains', 'dns'),
-('soa_contact', 'admin.atmyip.com', 'SOA contact email for new domains', 'dns'),
+('primary_nameserver', 'dns1.example.com', 'Primary nameserver for new domains', 'dns'),
+('secondary_nameserver', 'dns2.example.com', 'Secondary nameserver for new domains', 'dns'),
+('soa_contact', 'hostmaster.example.com', 'SOA contact email for new domains', 'dns'),
 ('default_ttl', '3600', 'Default TTL for new records', 'dns'),
 ('soa_refresh', '10800', 'SOA refresh interval (seconds)', 'dns'),
 ('soa_retry', '3600', 'SOA retry interval (seconds)', 'dns'),
@@ -340,23 +409,8 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('default_tenant_domains', '0', 'Default maximum domains per tenant (0=unlimited)', 'system'),
 ('records_per_page', '25', 'Number of records to display per page', 'system'),
 
--- License settings
-('license_mode', 'freemium', 'License mode: freemium or commercial', 'licensing'),
-('free_domain_limit', '5', 'Maximum domains allowed on free license', 'licensing'),
-('commercial_license_price', '50', 'Price for commercial license in USD', 'licensing'),
-('license_enforcement', '1', 'Enable/disable license enforcement (1=enabled, 0=disabled)', 'licensing'),
-('trial_period_days', '30', 'Trial period for commercial features in days', 'licensing'),
-('license_key_length', '32', 'Length of generated license keys', 'licensing');
+-- (Removed legacy adjustable license settings. Enforcement always on; free tier fixed at 5 domains.)
 
--- Initial custom record types
-INSERT INTO custom_record_types (type_name, description, validation_pattern, is_active) VALUES
-('NAPTR', 'Naming Authority Pointer', '^[0-9]+ [0-9]+ "[^"]*" "[^"]*" "[^"]*" .+$', true),
-('CAA', 'Certification Authority Authorization', '^[0-9]+ [a-zA-Z]+ "[^"]*"$', true),
-('TLSA', 'Transport Layer Security Authentication', '^[0-3] [0-1] [0-2] [0-9a-fA-F]+$', true);
-
--- (Removed license_purchases tracking - handled privately)
-
--- (Removed license_usage tracking - handled privately)
 ```
 
 ---
@@ -928,13 +982,51 @@ INSERT INTO custom_record_types (type_name, description, validation_pattern, is_
 - [x] Search and filtering (records listing supports type & text search; future: global cross-zone search pending)
 
 #### 15.4 Phase 4: DNSSEC & Polish (Weeks 7-8)
-- [ ] DNSSEC key management (ECDSA P-256, 12-month rotation)
-- [ ] Key generation and activation
-- [ ] DNSKEY/DS record display and export
-- [ ] Dynamic DNS token management interface
-- [ ] Final UI/UX improvements and theme customization
-- [ ] Comprehensive testing and bug fixes
-- [ ] Documentation and GitHub preparation
+DNSSEC core implementation delivered; remaining items narrowed to testing, export convenience, and optional enhancements.
+
+- [x] Enable / disable DNSSEC with PATCH→PUT fallback for 422 (PowerDNS empty rrsets case)
+- [x] Zone detection with candidate name variants (with/without trailing dot, lowercase)
+- [x] DNSSEC status card (enabled badge, serial, rectify action)
+- [x] DNSSEC key listing (id, type, algorithm, bits, active state, DS count)
+- [x] DS record aggregation & display (multi-key DS output)
+- [x] Key generation modal (algorithm selection: ECDSAP256SHA256 default, ED25519, RSA; key type CSK/KSK/ZSK; RSA bits input)
+- [x] Rollover modes in UI (Add, Immediate Replace, Timed Rollover)
+- [x] Global hold period system setting (dnssec_hold_period_days) + meta tag injection for JS
+- [x] Backend create_key handling of rollover_mode (add/immediate/timed)
+- [x] Immediate mode: auto-create new key then deactivate prior same-type/algorithm active keys
+- [x] Timed mode: metadata markers (PDNSCONSOLE-ROLLSTART, PDNSCONSOLE-HOLD) for cron to finalize
+- [x] Automated cron rollover script (initiate + completion phases) with per-domain metadata tracking
+- [x] Deactivation-first policy (old keys deactivated, then deleted after grace period) replacing immediate deletion
+- [x] Deactivation & cleanup metadata (PDNSCONSOLE-OLDKEY-<id>-DEACTIVATED) + configurable deletion grace (DELETION_GRACE_DAYS env)
+- [ ] Per-domain hold override (deferred; currently using global `dnssec_hold_period_days` only)
+- [x] Safety modals: Deactivate (warn if last active key) & Delete (high-risk guidance, recommended workflow)
+- [x] Audit logging: key generation, rollover start/complete, deactivation/delete (base events; finer-grain pending)
+- [x] Rectify zone button (API call wrapper)
+- [x] UI messaging system & spinner states for async actions
+- [x] Prevent accidental risky actions (modal gating vs simple confirm)
+- [x] Documentation updates (`docs/DNSSEC.md` guide created; README additions pending)
+- [x] Parent DS update helper (copy DS + checklist / TTL guidance panel + rollover status summary)
+- [x] Additional audit event taxonomy (explicit ACTIVATE / DEACTIVATE / DELETE / ROLLOVER_START / ROLLOVER_COMPLETE implemented; further enrichment pending)
+- [ ] Rollover test harness & scenario simulation (unit/integration tests for cron logic)
+- [ ] Dynamic DNS token management interface (moved from earlier phases; not started)
+- [ ] Final UI/UX polishing & theme consistency pass (spacing, iconography audit)
+- [ ] Comprehensive regression + DNSSEC validation testing matrix
+- [ ] Documentation & GitHub prep (README DNSSEC section, cron scheduling examples, env vars table)
+
+DNSSEC Implementation Notes (summary):
+ - Metadata Keys: PDNSCONSOLE-ROLLDATE (last completed; optional), PDNSCONSOLE-ROLLSTART (active timed rollover start), PDNSCONSOLE-OLDKEY-<id>-DEACTIVATED (timestamp for deletion grace). Per-domain hold override key (PDNSCONSOLE-HOLD) currently not written by UI (global setting used); future reinstatement possible.
+ - Rollover Flow (Timed): User generates new key (timed) → both keys active → cron after hold period deactivates old key(s) (marking PDNSCONSOLE-OLDKEY-<id>-DEACTIVATED) → after grace window cron deletes fully aged inactive keys.
+ - Safety: Deletion discouraged; UI provides educational modals & persistent DS publication reminder (alert-static to prevent auto-dismiss).
+ - DS Assistance: Panel surfaces DS records, copy function, checklist, and rollover progress summary.
+ - Extensibility: Environment variables (ROLLOVER_INTERVAL_DAYS, HOLD_PERIOD_DAYS, DELETION_GRACE_DAYS, DEFAULT_ALGORITHM, DEFAULT_KEYTYPE, RSA_BITS) drive policy; potential future env for DNSKEY export toggling.
+
+Future DNSSEC Enhancements (Planned / Deferred):
+ - Automated test harness simulating timed rollover (unit + integration) and edge cases (multiple algorithms, single-key zones).
+ - DNSKEY export/download (raw zone DNSKEY set, optional single-key file) for parent submission & external validation.
+ - Parent DS publish acknowledgment tracking (manual confirmation checkbox + metadata timestamp) to surface readiness before old key retirement.
+ - UI indicator linking specific audit entries to key lifecycle rows (contextual log drill-down).
+ - Optional per-domain hold override reinstatement with permission gating.
+ - Additional validation tools (inline dig verification / DNSViz link generation).
 
 ---
 
@@ -959,11 +1051,11 @@ Licensing Implementation Notes:
 #### 15.6 Phase 6: Add-on Enhancements (Post GA / Optional)
 Focused hardening, UX, and security add-ons requested after core feature set.
 
-- [ ] Record Comments UI (CRUD) leveraging existing PowerDNS `comments` table (list, add, edit, delete, link to records)
-- [ ] Cloudflare Turnstile integration: system settings keys + login form widget (graceful fallback if unset)
-- [ ] Google reCAPTCHA integration (v2/v3 configurable) via system settings + login form conditional rendering
+- [x] Record Comments UI (CRUD) leveraging existing PowerDNS `comments` table (list, add, edit, delete, link to records)
+- [x] Cloudflare Turnstile integration: system settings keys + login form widget (graceful fallback if unset)
+- [x] Google reCAPTCHA integration (v2/v3 configurable) via system settings + login form conditional rendering
 - [ ] Maintenance Mode switch (blocks non-super-admin logins; customizable message; bypass via emergency token)
-- [ ] Unified Human Verification Abstraction (select None / Turnstile / reCAPTCHA in settings)
+- [x] Unified Human Verification Abstraction (select None / Turnstile / reCAPTCHA in settings)
 - [ ] Audit logging for maintenance mode toggles & CAPTCHA challenge failures
 
 Notes:
@@ -1351,22 +1443,4 @@ This system will compete directly with expensive SaaS DNS management solutions b
 - Designed as open-source GitHub project
 - Extensible architecture for future front-end integration
 
-** Current Priorities:
-- (DONE) CSV export implemented (records/export.php) excluding SOA/NS with headers name,type,content,ttl,prio.
-- (DONE) CSRF token middleware + full form integration across records, admin, zones, auth (login + forgot password).
-- (DONE) Development plan status tagging (legend added; sections updated for accuracy).
-- (IN PROGRESS) CSV import enhancement: add upsert/dry-run + diff (basic create-only import live).
-- (IN PROGRESS) Enhanced TXT parser (currently length + pattern only; SPF/DKIM/DMARC semantics pending).
-- (PENDING) Dynamic DNS API endpoint (token model + ddclient compatibility) & token UI polish.
-- (PENDING) Licensing enforcement hook (domain create/update gating; visual indicators) & limit checks in Domain::createDomain.
-- (PENDING) DNSSEC phase kickoff (key mgmt scaffolding, UI pages, DS export).
-- (PENDING) Rate limiting (login + dynamic DNS) & lockout transparency UI.
-- (PENDING) Expand audit logging (login success/fail granularity, tenant/user/zone events coverage helper abstraction).
-- (PENDING) API validation endpoint (AJAX record validation pre-submit).
-- (PENDING) CSV import dry-run mode + diff summary (ties into upsert task).
-
-
-** Additional Add-on Requests (Moved)**
-
-Moved into Phase 6 checklist above.
 

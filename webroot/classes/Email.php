@@ -12,25 +12,28 @@ class Email {
     private $mailer;
     private $auditLog;
     private $settings;
+    private $overrides; // optional config overrides
     
-    public function __construct() {
+    public function __construct($overrides = null) {
         $this->mailer = new PHPMailer(true);
         $this->auditLog = new AuditLog();
         $this->settings = new Settings();
+        $this->overrides = is_array($overrides) ? $overrides : null;
         $this->configureMailer();
     }
     
     private function configureMailer() {
         try {
             // Get email settings from database
-            $emailSettings = $this->settings->getEmailSettings();
+            $emailSettings = $this->overrides ?: $this->settings->getEmailSettings();
             
             // Server settings
             $this->mailer->isSMTP();
             $this->mailer->Host = $emailSettings['smtp_host'];
-            $this->mailer->SMTPAuth = true;
             $this->mailer->Username = $emailSettings['smtp_username'];
             $this->mailer->Password = $emailSettings['smtp_password'];
+            // Only enable SMTP auth when a username is provided
+            $this->mailer->SMTPAuth = !empty($this->mailer->Username);
             $this->mailer->Port = (int)$emailSettings['smtp_port'];
             
             // Security settings
@@ -38,6 +41,8 @@ class Email {
                 $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             } elseif ($emailSettings['smtp_secure'] === 'ssl') {
                 $this->mailer->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+            } else {
+                $this->mailer->SMTPSecure = '';
             }
             
             // Default From address

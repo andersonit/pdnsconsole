@@ -126,6 +126,32 @@ class AuditLog {
         return $this->logAction(null, 'USER_LOGIN_FAILED', null, null, null, null, null, $metadata);
     }
 
+    /**
+     * Log maintenance mode toggle
+     */
+    public function logMaintenanceToggle($userId, $enabled, $previouslyEnabled) {
+        $metadata = [
+            'enabled' => (bool)$enabled,
+            'previous' => (bool)$previouslyEnabled,
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? null
+        ];
+        return $this->logAction($userId, 'MAINTENANCE_TOGGLE', 'global_settings', null, ['enabled' => $previouslyEnabled ? '1' : '0'], ['enabled' => $enabled ? '1' : '0'], null, $metadata);
+    }
+
+    /**
+     * Log CAPTCHA verification failure on login
+     */
+    public function logCaptchaFailure($ip, $provider, $reason = null, $usernameAttempt = null) {
+        $metadata = [
+            'provider' => $provider,
+            'reason' => $reason,
+            'ip' => $ip,
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
+            'path' => $_SERVER['REQUEST_URI'] ?? ''
+        ];
+        return $this->logAction(null, 'CAPTCHA_FAILED', null, null, null, null, $ip, $metadata);
+    }
+
     public function logPasswordChanged($userId, $targetUserId, $metadata = []) {
         return $this->logAction($userId, 'USER_PASSWORD_CHANGE', 'admin_users', $targetUserId, null, null, null, $metadata);
     }
@@ -476,7 +502,9 @@ class AuditLog {
             'CUSTOM_TYPE_DELETE' => 'Custom Record Type Deleted',
             'COMMENT_CREATE' => 'Comment Created',
             'COMMENT_UPDATE' => 'Comment Updated',
-            'COMMENT_DELETE' => 'Comment Deleted'
+            'COMMENT_DELETE' => 'Comment Deleted',
+            'MAINTENANCE_TOGGLE' => 'Maintenance Mode Toggled',
+            'CAPTCHA_FAILED' => 'CAPTCHA Failed'
         ];
 
         return $actionMap[$action] ?? $action;

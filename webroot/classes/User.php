@@ -130,6 +130,19 @@ class User {
             [$username]
         );
     }
+
+    /**
+     * Get user by username OR email (active accounts only)
+     * Convenience method for pre-auth checks (e.g., maintenance gating)
+     */
+    public function getUserByUsernameOrEmail($identifier) {
+        return $this->db->fetch(
+            "SELECT id, username, email, role, is_active, created_at, last_login
+             FROM admin_users
+             WHERE (username = ? OR email = ?) AND is_active = 1",
+            [$identifier, $identifier]
+        );
+    }
     
     /**
      * Update user

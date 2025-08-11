@@ -698,6 +698,21 @@ body.dark-mode {
 
 /* Target only layout-shifting hover effects */
 
+/* ===== Preserve contextual backgrounds on card headers ===== */
+/* Some themes or our dark-mode overlay set generic card-header backgrounds. Ensure
+    contextual utilities like bg-success/bg-secondary applied to card-header stick. */
+.card .card-header.bg-success { background-color: var(--bs-success) !important; }
+.card .card-header.bg-secondary { background-color: var(--bs-secondary) !important; }
+.card .card-header.bg-primary { background-color: var(--bs-primary) !important; }
+.card .card-header.bg-warning { background-color: var(--bs-warning) !important; }
+.card .card-header.bg-info { background-color: var(--bs-info) !important; }
+/* Dark mode variants (same enforcement) */
+body.dark-mode .card .card-header.bg-success { background-color: var(--bs-success) !important; }
+body.dark-mode .card .card-header.bg-secondary { background-color: var(--bs-secondary) !important; }
+body.dark-mode .card .card-header.bg-primary { background-color: var(--bs-primary) !important; }
+body.dark-mode .card .card-header.bg-warning { background-color: var(--bs-warning) !important; }
+body.dark-mode .card .card-header.bg-info { background-color: var(--bs-info) !important; }
+
 /* Specific fix for Search and Filters card shifting issue */
 .card.mb-4:hover {
     transform: none !important;

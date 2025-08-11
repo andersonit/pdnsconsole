@@ -16,6 +16,58 @@ $bodyClasses = 'login-page';
 if ($themeInfo['effective_dark']) {
     $bodyClasses .= ' dark-mode';
 }
+
+// CAPTCHA config
+$captchaProvider = $settings->get('captcha_provider', 'none');
+$recaptchaSiteKey = $settings->get('recaptcha_site_key', '');
+$turnstileSiteKey = $settings->get('turnstile_site_key', '');
+$captchaError = '';
+$isMaintenance = $settings->get('maintenance_mode', '0') === '1';
+
+// CAPTCHA validation on POST
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$requiresMFA) {
+    if ($captchaProvider === 'recaptcha' && !empty($recaptchaSiteKey)) {
+        $captchaResponse = $_POST['g-recaptcha-response'] ?? '';
+        if (empty($captchaResponse)) {
+            $captchaError = 'Please complete the CAPTCHA.';
+            (new AuditLog())->logCaptchaFailure($_SERVER['REMOTE_ADDR'] ?? null, 'recaptcha', 'empty_response', $_POST['username'] ?? null);
+        } else {
+            $verify = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret=' . urlencode($settings->get('recaptcha_secret_key', '')) . '&response=' . urlencode($captchaResponse) . '&remoteip=' . $_SERVER['REMOTE_ADDR']);
+            $captchaResult = json_decode($verify, true);
+            if (empty($captchaResult['success'])) {
+                $captchaError = 'CAPTCHA verification failed.';
+                (new AuditLog())->logCaptchaFailure($_SERVER['REMOTE_ADDR'] ?? null, 'recaptcha', isset($captchaResult['error-codes']) ? json_encode($captchaResult['error-codes']) : 'verification_failed', $_POST['username'] ?? null);
+            }
+        }
+    } elseif ($captchaProvider === 'turnstile' && !empty($turnstileSiteKey)) {
+        $captchaResponse = $_POST['cf-turnstile-response'] ?? '';
+        if (empty($captchaResponse)) {
+            $captchaError = 'Please complete the CAPTCHA.';
+            (new AuditLog())->logCaptchaFailure($_SERVER['REMOTE_ADDR'] ?? null, 'turnstile', 'empty_response', $_POST['username'] ?? null);
+        } else {
+            $verify = file_get_contents('https://challenges.cloudflare.com/turnstile/v0/siteverify', false, stream_context_create([
+                'http' => [
+                    'method' => 'POST',
+                    'header' => "Content-type: application/x-www-form-urlencoded",
+                    'content' => http_build_query([
+                        'secret' => $settings->get('turnstile_secret_key', ''),
+                        'response' => $captchaResponse,
+                        'remoteip' => $_SERVER['REMOTE_ADDR']
+                    ])
+                ]
+            ]));
+            $captchaResult = json_decode($verify, true);
+            if (empty($captchaResult['success'])) {
+                $captchaError = 'CAPTCHA verification failed.';
+                (new AuditLog())->logCaptchaFailure($_SERVER['REMOTE_ADDR'] ?? null, 'turnstile', isset($captchaResult['error-codes']) ? json_encode($captchaResult['error-codes']) : 'verification_failed', $_POST['username'] ?? null);
+            }
+        }
+    }
+    if (!empty($captchaError) && empty($loginError)) {
+        // Only surface captchaError if another error wasn't already set (e.g., CSRF or maintenance)
+        $loginError = $captchaError;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -47,6 +99,20 @@ if ($themeInfo['effective_dark']) {
                 <?php echo htmlspecialchars($loginError); ?>
             </div>
         <?php endif; ?>
+
+        <?php if ($isMaintenance): ?>
+            <div class="alert alert-warning" role="alert">
+                <i class="bi bi-tools me-2"></i>
+                System is currently in maintenance mode. Only super administrators can log in.
+            </div>
+        <?php endif; ?>
+
+            <?php if (!empty($captchaError) && empty($loginError)): ?>
+                <div class="alert alert-danger" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <?php echo htmlspecialchars($captchaError); ?>
+                </div>
+            <?php endif; ?>
         
         <?php if (!empty($loginSuccess)): ?>
             <div class="alert alert-success" role="alert">
@@ -80,6 +146,21 @@ if ($themeInfo['effective_dark']) {
                            required>
                     <label for="password">Password</label>
                 </div>
+
+            <?php if ($captchaProvider === 'recaptcha' && !empty($recaptchaSiteKey)): ?>
+                        <div class="mb-3 text-center">
+                <div class="g-recaptcha" data-sitekey="<?php echo htmlspecialchars($recaptchaSiteKey); ?>" data-theme="light"></div>
+                        </div>
+                    <?php elseif ($captchaProvider === 'turnstile' && !empty($turnstileSiteKey)): ?>
+                        <div class="mb-3 text-center">
+                            <!-- DEBUG: Turnstile widget should render below -->
+                <div class="cf-turnstile" data-sitekey="<?php echo htmlspecialchars($turnstileSiteKey); ?>" data-theme="light"></div>
+                            <noscript>
+                                <div class="alert alert-warning mt-2">JavaScript is required to display the CAPTCHA.</div>
+                            </noscript>
+                            <div id="turnstile-fallback" class="text-danger small mt-2" style="display:none;">CAPTCHA failed to load. Please check your site key or network connection.</div>
+                        </div>
+                    <?php endif; ?>
                 
                 <div class="d-grid">
                     <button type="submit" class="btn btn-primary btn-login">
@@ -212,6 +293,15 @@ if ($themeInfo['effective_dark']) {
     
     <!-- Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+
+        <?php if ($captchaProvider === 'recaptcha' && !empty($recaptchaSiteKey)): ?>
+            <script src="https://www.google.com/recaptcha/api.js" async defer
+                onerror="(function(){var el=document.getElementById('recaptcha-fallback');if(el) el.style.display='block';})();"></script>
+        <?php elseif ($captchaProvider === 'turnstile' && !empty($turnstileSiteKey)): ?>
+            <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer
+                onerror="(function(){var el=document.getElementById('turnstile-fallback');if(el) el.style.display='block';})();"
+                onload="(function(){var el=document.getElementById('turnstile-fallback');if(el) el.style.display='none';})();"></script>
+        <?php endif; ?>
     
     <script>
         // Forgot password form handling

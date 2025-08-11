@@ -86,15 +86,53 @@ try {
             $response['ds'] = $client->getDsRecords($zone);
             break;
 
-        case 'create_key':
+    case 'create_key':
             $zone = trim($_POST['zone'] ?? '');
             if (!$zone) { throw new Exception('Zone required'); }
             $keytype = $_POST['keytype'] ?? 'zsK';
             $algo = $_POST['algorithm'] ?? 'RSASHA256';
             $bits = (int)($_POST['bits'] ?? 2048);
-            $payload = [ 'keytype' => strtolower($keytype) === 'ksk' ? 'ksk' : 'zsk', 'active' => true, 'algorithm' => $algo, 'bits' => $bits ];
+            $mode = $_POST['rollover_mode'] ?? 'add';
+            $holdDays = (int)($_POST['hold_days'] ?? 7);
+            $normType = in_array(strtolower($keytype), ['ksk','zsk','csk']) ? strtolower($keytype) : 'zsk';
+            $payload = [ 'keytype' => $normType, 'active' => true, 'algorithm' => $algo ];
+            if (stripos($algo, 'RSA') === 0) { $payload['bits'] = $bits; }
             $newKey = $client->createKey($zone, $payload);
-            $audit->logDNSSECKeyGenerated($userId, null, $newKey, ['zone' => $zone]);
+            // Explicit audit event for key create
+            $audit->logAction($userId, 'DNSSEC_KEY_CREATE', 'cryptokeys', $newKey['id'] ?? null, null, $newKey, null, ['zone' => $zone, 'mode' => $mode]);
+
+            // Immediate replace: deactivate older active keys of same keytype+algorithm
+        if ($mode === 'immediate') {
+                try {
+                    $existing = $client->listKeys($zone);
+                    if (is_array($existing)) {
+                        foreach ($existing as $k) {
+                            if ($k['id'] != $newKey['id'] && ($k['keytype'] ?? '') === $newKey['keytype'] && ($k['algorithm'] ?? '') === $newKey['algorithm'] && !empty($k['active'])) {
+                                $client->setKeyActive($zone, $k['id'], false);
+                $audit->logAction($userId, 'DNSSEC_KEY_DEACTIVATE', 'cryptokeys', $k['id'], null, ['id'=>$k['id'],'active'=>false], null, ['zone' => $zone, 'reason' => 'immediate_replace']);
+                            }
+                        }
+                    }
+                } catch (Exception $eDeactivate) {
+                    // Non-fatal
+                }
+            } elseif ($mode === 'timed') {
+                // Record rollover start in domainmetadata so cron script can finalize later
+                try {
+                    $db = Database::getInstance();
+                    // Determine domain_id for metadata (strip trailing dot both sides)
+                    $dRow = $db->fetch("SELECT id FROM domains WHERE name = ? OR name = ?", [rtrim($zone,'.'), rtrim($zone,'.').'.']);
+                    if ($dRow) {
+                        $exists = $db->fetch("SELECT id FROM domainmetadata WHERE domain_id=? AND kind='PDNSCONSOLE-ROLLSTART'", [$dRow['id']]);
+                        if ($exists) {
+                            $db->execute("UPDATE domainmetadata SET content=NOW() WHERE id=?", [$exists['id']]);
+                        } else {
+                            $db->execute("INSERT INTO domainmetadata (domain_id, kind, content) VALUES (?,?,NOW())", [$dRow['id'], 'PDNSCONSOLE-ROLLSTART']);
+                        }
+            $audit->logAction($userId, 'DNSSEC_KEY_ROLLOVER_START', 'domains', $dRow['id'], null, null, null, ['zone' => $zone, 'hold_days_effective' => $holdDays]);
+                    }
+                } catch (Exception $eMeta) { /* ignore */ }
+            }
             $response['success'] = true;
             $response['key'] = $newKey;
             break;
@@ -106,7 +144,7 @@ try {
             if (!$zone || !$keyId) { throw new Exception('Zone and key id required'); }
             $client->setKeyActive($zone, $keyId, $active);
             $response['success'] = true;
-            $audit->logDNSSECKeyGenerated($userId, null, ['id' => $keyId, 'active' => $active], ['zone' => $zone, 'action' => 'toggle']);
+            $audit->logAction($userId, $active ? 'DNSSEC_KEY_ACTIVATE' : 'DNSSEC_KEY_DEACTIVATE', 'cryptokeys', $keyId, null, ['id'=>$keyId,'active'=>$active], null, ['zone'=>$zone, 'manual'=>true]);
             break;
 
         case 'delete_key':
@@ -115,7 +153,7 @@ try {
             if (!$zone || !$keyId) { throw new Exception('Zone and key id required'); }
             $client->deleteKey($zone, $keyId);
             $response['success'] = true;
-            $audit->logDNSSECKeyGenerated($userId, null, ['id' => $keyId], ['zone' => $zone, 'action' => 'delete']);
+            $audit->logAction($userId, 'DNSSEC_KEY_DELETE', 'cryptokeys', $keyId, null, ['id'=>$keyId], null, ['zone'=>$zone, 'manual'=>true]);
             break;
 
         case 'rectify_zone':
@@ -124,6 +162,95 @@ try {
             $client->rectifyZone($zone);
             $response['success'] = true;
             $audit->logAction($userId, 'DNSSEC_RECTIFY', 'domains', null, null, null, null, ['zone' => $zone]);
+            break;
+
+        case 'check_parent_ds':
+            $zone = trim($_POST['zone'] ?? '');
+            if (!$zone) { throw new Exception('Zone required'); }
+            // Normalize zone (strip trailing dot for query)
+            $qDomain = rtrim($zone, '.');
+            // Query local DS from PowerDNS for comparison
+            $localDs = [];
+            try { $localDs = $client->getDsRecords($zone); } catch (Exception $eDs) { /* ignore */ }
+            // Perform DNS query using Net_DNS2
+            if (!class_exists('Net_DNS2_Resolver')) { throw new Exception('Net_DNS2 not installed'); }
+            $resolver = new Net_DNS2_Resolver([
+                'recurse' => true,
+                'use_tcp' => false,
+                'timeout' => 3.0,
+            ]);
+            $parentDs = [];
+            $error = null;
+            try {
+                $resp = $resolver->query($qDomain, 'DS');
+                if (!empty($resp->answer)) {
+                    foreach ($resp->answer as $rr) {
+                        if (strcasecmp($rr->qtype, 'DS') === 0 || $rr->type === 'DS') {
+                            // Format: keytag algorithm digest_type digest
+                            $parentDs[] = trim($rr->keytag . ' ' . $rr->algorithm . ' ' . $rr->digest_type . ' ' . strtoupper($rr->digest));
+                        }
+                    }
+                }
+            } catch (Exception $eQuery) {
+                $error = $eQuery->getMessage();
+            }
+            // Compare sets (case-insensitive)
+            $norm = function($arr){ $o=[]; foreach($arr as $d){ $o[strtoupper(preg_replace('/\s+/', ' ', trim($d)))] = true; } return $o; };
+            $localNorm = $norm($localDs);
+            $parentNorm = $norm($parentDs);
+            $allKeys = array_unique(array_merge(array_keys($localNorm), array_keys($parentNorm)));
+            sort($allKeys);
+            $per = [];
+            $publishedCount = 0; $missingCount = 0; $extraCount = 0;
+            foreach($allKeys as $k){
+                $inLocal = isset($localNorm[$k]);
+                $inParent = isset($parentNorm[$k]);
+                $status = $inLocal && $inParent ? 'published' : ($inLocal && !$inParent ? 'missing' : (!$inLocal && $inParent ? 'extra' : 'unknown'));
+                if($status==='published') $publishedCount++; elseif($status==='missing') $missingCount++; elseif($status==='extra') $extraCount++;
+                $per[] = ['ds'=>$k, 'status'=>$status];
+            }
+            $match = 'none';
+            if ($publishedCount && $missingCount===0 && $extraCount===0 && count($localNorm)===count($parentNorm)) { $match='full'; }
+            elseif ($publishedCount>0 || $extraCount>0 || $missingCount>0) { $match='partial'; }
+            // Cache result in domainmetadata
+            try {
+                $db = Database::getInstance();
+                $dRow = $db->fetch("SELECT id FROM domains WHERE name=? OR name=?", [$qDomain, $qDomain.'.']);
+                if ($dRow) {
+                    $checkedAtRaw = date('c');
+                    $checkedAtDisplay = date('Y-m-d, H:i:s');
+                    $payload = json_encode([
+                        'checked_at' => $checkedAtRaw,
+                        'checked_at_display' => $checkedAtDisplay,
+                        'match' => $match,
+                        'local_count' => count($localNorm),
+                        'parent_count' => count($parentNorm),
+                        'published' => $publishedCount,
+                        'missing' => $missingCount,
+                        'extra' => $extraCount,
+                        'per' => $per
+                    ], JSON_UNESCAPED_SLASHES);
+                    $existing = $db->fetch("SELECT id FROM domainmetadata WHERE domain_id=? AND kind='PDNSCONSOLE-DSCHECK'", [$dRow['id']]);
+                    if ($existing) { $db->execute("UPDATE domainmetadata SET content=? WHERE id=?", [$payload, $existing['id']]); }
+                    else { $db->execute("INSERT INTO domainmetadata (domain_id, kind, content) VALUES (?,?,?)", [$dRow['id'], 'PDNSCONSOLE-DSCHECK', $payload]); }
+                    $response['checked_at'] = $checkedAtRaw;
+                    $response['checked_at_display'] = $checkedAtDisplay;
+                } else {
+                    $response['checked_at'] = date('c');
+                    $response['checked_at_display'] = date('Y-m-d, H:i:s');
+                }
+            } catch (Exception $eCache) { /* ignore cache errors */ }
+            $response['success'] = true;
+            $response['parent_ds'] = $parentDs;
+            $response['local_ds'] = $localDs;
+            $response['comparison'] = [
+                'match' => $match,
+                'published' => $publishedCount,
+                'missing' => $missingCount,
+                'extra' => $extraCount,
+                'details' => $per
+            ];
+            if ($error) { $response['warning'] = $error; }
             break;
 
         default:

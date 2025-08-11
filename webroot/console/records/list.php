@@ -132,6 +132,7 @@ $sortOrder = in_array($sortOrder, ['ASC', 'DESC']) ? $sortOrder : 'ASC';
 $recordsList = [];
 $totalRecords = 0;
 $recordStats = [];
+$dnssecEnabled = null; // will remain null if status cannot be determined
 
 // Check for session messages
 $sessionSuccess = $_SESSION['success'] ?? '';
@@ -153,6 +154,12 @@ if ($domainInfo) {
 
         $totalRecords = $records->getRecordCountForDomain($domainId, $tenantId, $typeFilter, $search);
         $recordStats = $records->getRecordStats($domainId, $tenantId);
+        // Determine DNSSEC status using local database (count active cryptokeys like zones/manage.php)
+        try {
+            $db2 = Database::getInstance();
+            $ckActive = $db2->fetch("SELECT COUNT(*) AS c FROM cryptokeys WHERE domain_id = ? AND active = 1", [$domainId]);
+            $dnssecEnabled = ($ckActive['c'] ?? 0) > 0;
+        } catch (Exception $eDnssecStatus) { $dnssecEnabled = null; }
     // New record comments integration
     $recordComments = new RecordComments();
     $commentCounts = $recordComments->getCountsForDomain($domainId);
@@ -278,9 +285,16 @@ if (class_exists('LicenseManager')) {
                 <div class="col-12">
                     <div class="card">
                         <div class="card-body">
-                            <h6 class="card-title">
-                                <i class="bi bi-bar-chart me-2"></i>
-                                Record Statistics
+                            <h6 class="card-title d-flex align-items-center flex-wrap gap-2">
+                                <span><i class="bi bi-bar-chart me-2"></i>Record Statistics</span>
+                                <?php if ($dnssecEnabled !== null): ?>
+                                    <a href="?page=zone_dnssec&domain_id=<?php echo $domainId; ?>" class="text-decoration-none" data-bs-toggle="tooltip" data-bs-title="Manage DNSSEC for this zone">
+                                        <span class="badge <?php echo $dnssecEnabled ? 'bg-success' : 'bg-secondary'; ?>">
+                                            <i class="bi <?php echo $dnssecEnabled ? 'bi-shield-check' : 'bi-shield-x'; ?> me-1"></i>
+                                            <?php echo $dnssecEnabled ? 'DNSSEC Enabled' : 'DNSSEC Disabled'; ?>
+                                        </span>
+                                    </a>
+                                <?php endif; ?>
                             </h6>
                             <div class="row">
                                 <?php foreach ($recordStats as $stat): ?>

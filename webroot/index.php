@@ -99,6 +99,21 @@ if ($page === 'login') {
         $password = $_POST['password'] ?? '';
         $mfaCode = trim($_POST['mfa_code'] ?? '');
         $backupCode = trim($_POST['backup_code'] ?? '');
+
+        // Maintenance mode enforcement for initial login step only
+        $maintenance = (new Settings())->get('maintenance_mode', '0') === '1';
+        if ($maintenance && empty($_SESSION['temp_user_id'])) {
+            // Only allow super admins to proceed; check by lookup
+            $uRec = null;
+            if (!empty($username)) {
+                try { $uRec = $user->getUserByUsernameOrEmail($username); } catch (Throwable $e) { $uRec = null; }
+            }
+            $isAllowed = $uRec && $user->isSuperAdmin($uRec['id']);
+            if (!$isAllowed) {
+                http_response_code(503);
+                $loginError = 'System is in maintenance mode. Only super administrators may log in.';
+            }
+        }
         
         // Check if this is MFA verification step
         if (isset($_SESSION['temp_user_id']) && (!empty($mfaCode) || !empty($backupCode))) {
@@ -106,6 +121,15 @@ if ($page === 'login') {
             $userId = $_SESSION['temp_user_id'];
             $tempUserData = $_SESSION['temp_user_data'];
             $mfa = new MFA();
+
+            // Enforce maintenance mode at MFA step as well (edge case: mode toggled after password)
+            if ((new Settings())->get('maintenance_mode', '0') === '1' && !$user->isSuperAdmin($userId)) {
+                http_response_code(503);
+                $loginError = 'System is in maintenance mode. Only super administrators may log in.';
+                // Clear temp session data to prevent further attempts until maintenance ends
+                unset($_SESSION['temp_user_id']);
+                unset($_SESSION['temp_user_data']);
+            } else {
             
             $mfaValid = false;
             
@@ -143,7 +167,8 @@ if ($page === 'login') {
                 $loginError = 'Invalid 2FA code. Please try again.';
                 // Keep temp session for retry
             }
-        } elseif (!empty($username) && !empty($password)) {
+            }
+    } elseif (empty($loginError) && !empty($username) && !empty($password)) {
             // Initial login step
             $authResult = $user->authenticate($username, $password);
             
