@@ -9,6 +9,7 @@ Key Completed Since Original Draft:
 - Added `LicenseManager` class: signature verification (RSA SHA256), obfuscated embedded placeholder public key with external file override + integrity flagging.
 - Stable, cluster-safe Installation Code (derived only from persistent `installation_id`) – identical across load-balanced web nodes sharing the DB.
 - Domain creation enforcement (Free = 5 domains; Commercial = configured limit or unlimited when domains=0 in key) with UI near-limit banners and hard stop.
+- Simplified comments: single comment per zone (native PowerDNS comments repurposed for zone-level INFO) and single comment per record (custom record_comments table with unique constraint); removed multi-comment APIs and legacy generic comments class.
 - Dedicated License Management page (`admin_license`) with status, key entry, installation code copy, purchase button.
 - Dashboard & footer indicators + integrity warning surfaces.
 - Audit logging of license key changes and limit blocks.
@@ -27,7 +28,7 @@ High-Priority Remaining Work:
 2. DNSSEC key management (generation, publishing, DS export UI).
 3. Enhanced TXT semantic validation (SPF/DKIM/DMARC parsing & hints).
 4. CSV import: dry-run + diff/upsert reporting.
-5. Expanded audit coverage (auth success/fail, license integrity flag events, API token use).
+5. Expanded audit coverage (auth success/fail, license integrity flag events, API token use, comment set/clear actions).
 6. Rate limiting for login + dynamic DNS endpoints.
 7. Optional license revocation / rotation tooling (signed revocation list or manual flagging in private portal).
 
@@ -312,25 +313,7 @@ CREATE TABLE audit_log (
     INDEX idx_action (action)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
--- License management
-CREATE TABLE licenses (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    license_key VARCHAR(255) NOT NULL UNIQUE,
-    license_type ENUM('free', 'commercial') NOT NULL DEFAULT 'free',
-    max_domains INT DEFAULT 5, -- 5 for free, 0 for unlimited commercial
-    contact_email VARCHAR(255),
-    installation_fingerprint VARCHAR(64),
-    activation_count INT DEFAULT 0,
-    max_activations INT DEFAULT 3,
-    license_data TEXT, -- Decoded license information (JSON)
-    is_active BOOLEAN DEFAULT TRUE,
-    last_validated TIMESTAMP NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NULL, -- NULL for lifetime licenses
-    INDEX idx_license_key (license_key),
-    INDEX idx_license_type (license_type),
-    INDEX idx_fingerprint (installation_fingerprint)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
+-- (Removed legacy license management tables in favor of lightweight global_settings storage)
 
 -- Initial global settings data
 INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES
@@ -371,38 +354,9 @@ INSERT INTO custom_record_types (type_name, description, validation_pattern, is_
 ('CAA', 'Certification Authority Authorization', '^[0-9]+ [a-zA-Z]+ "[^"]*"$', true),
 ('TLSA', 'Transport Layer Security Authentication', '^[0-3] [0-1] [0-2] [0-9a-fA-F]+$', true);
 
--- License purchases tracking
-CREATE TABLE license_purchases (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    license_id INT NOT NULL,
-    payment_method VARCHAR(50),
-    payment_id VARCHAR(255), -- Payment processor transaction ID
-    amount DECIMAL(10,2),
-    currency VARCHAR(3) DEFAULT 'USD',
-    purchase_email VARCHAR(255) NOT NULL,
-    billing_name VARCHAR(255),
-    billing_address TEXT,
-    payment_status ENUM('pending', 'completed', 'failed', 'refunded') DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
-    INDEX idx_payment_id (payment_id),
-    INDEX idx_purchase_email (purchase_email)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
+-- (Removed license_purchases tracking - handled privately)
 
--- License usage tracking
-CREATE TABLE license_usage (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    license_id INT NOT NULL,
-    tenant_id INT,
-    domain_count INT DEFAULT 0,
-    last_checked TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    usage_date DATE DEFAULT (CURRENT_DATE),
-    FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE SET NULL,
-    UNIQUE KEY unique_license_date (license_id, usage_date),
-    INDEX idx_license_usage (license_id, usage_date)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
+-- (Removed license_usage tracking - handled privately)
 ```
 
 ---

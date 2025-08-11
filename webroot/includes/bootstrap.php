@@ -62,6 +62,9 @@ require_once __DIR__ . '/../classes/Domain.php';
 require_once __DIR__ . '/../classes/Records.php';
 require_once __DIR__ . '/../classes/Nameserver.php';
 require_once __DIR__ . '/../classes/Email.php';
+// Removed legacy Comments.php (multi-comment implementation)
+require_once __DIR__ . '/../classes/RecordComments.php';
+require_once __DIR__ . '/../classes/ZoneComments.php';
 // Licensing (loaded late so it can use other helpers if needed)
 require_once __DIR__ . '/../classes/LicenseManager.php';
 

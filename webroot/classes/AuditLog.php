@@ -213,6 +213,21 @@ class AuditLog {
     }
 
     /**
+     * Comment-specific logging methods
+     */
+    public function logCommentCreated($userId, $commentId, $commentData, $metadata = []) {
+        return $this->logAction($userId, 'COMMENT_CREATE', 'comments', $commentId, null, $commentData, null, $metadata);
+    }
+
+    public function logCommentUpdated($userId, $commentId, $oldData, $newData, $metadata = []) {
+        return $this->logAction($userId, 'COMMENT_UPDATE', 'comments', $commentId, $oldData, $newData, null, $metadata);
+    }
+
+    public function logCommentDeleted($userId, $commentId, $commentData, $metadata = []) {
+        return $this->logAction($userId, 'COMMENT_DELETE', 'comments', $commentId, $commentData, null, null, $metadata);
+    }
+
+    /**
      * Get audit log entries with filtering and pagination
      */
     public function getAuditLog($filters = [], $limit = 50, $offset = 0) {
@@ -455,9 +470,13 @@ class AuditLog {
             'DNSSEC_ENABLE' => 'DNSSEC Enabled',
             'DNSSEC_DISABLE' => 'DNSSEC Disabled',
             'DNSSEC_KEY_GENERATE' => 'DNSSEC Key Generated',
+            'DNSSEC_RECTIFY' => 'DNSSEC Zone Rectified',
             'CUSTOM_TYPE_CREATE' => 'Custom Record Type Created',
             'CUSTOM_TYPE_UPDATE' => 'Custom Record Type Updated',
-            'CUSTOM_TYPE_DELETE' => 'Custom Record Type Deleted'
+            'CUSTOM_TYPE_DELETE' => 'Custom Record Type Deleted',
+            'COMMENT_CREATE' => 'Comment Created',
+            'COMMENT_UPDATE' => 'Comment Updated',
+            'COMMENT_DELETE' => 'Comment Deleted'
         ];
 
         return $actionMap[$action] ?? $action;

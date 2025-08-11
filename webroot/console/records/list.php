@@ -37,6 +37,29 @@ if (!empty($action)) {
                     }
                     include 'delete.php';
                     return;
+        case 'comment':
+            if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+                if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+                    $_SESSION['error'] = 'Security token mismatch.';
+                    header('Location: ?page=records&domain_id=' . $domainId);
+                    exit;
+                }
+                $recordId = intval($_POST['record_id'] ?? 0);
+                $text = trim($_POST['comment'] ?? '');
+                if ($recordId > 0) {
+                    try {
+                        $rc = new RecordComments();
+                        if ($text === '') { $rc->clearComment($recordId, $currentUser['id']); }
+                        else { $rc->setComment($recordId, $currentUser['id'], $currentUser['username'], $text); }
+                        $_SESSION['success'] = 'Comment saved.';
+                    } catch (Exception $e) {
+                        $_SESSION['error'] = 'Comment error: ' . $e->getMessage();
+                    }
+                }
+                header('Location: ?page=records&domain_id=' . $domainId);
+                exit;
+            }
+            break;
         case 'bulk':
         case 'add_bulk':
             include 'add_bulk.php';
@@ -130,6 +153,10 @@ if ($domainInfo) {
 
         $totalRecords = $records->getRecordCountForDomain($domainId, $tenantId, $typeFilter, $search);
         $recordStats = $records->getRecordStats($domainId, $tenantId);
+    // New record comments integration
+    $recordComments = new RecordComments();
+    $commentCounts = $recordComments->getCountsForDomain($domainId);
+    $latestComments = $recordComments->getLatestForDomain($domainId);
     } catch (Exception $e) {
         $error = 'Error loading records: ' . $e->getMessage();
     }
@@ -409,6 +436,7 @@ if (class_exists('LicenseManager')) {
                                 </th>
                                 <th>TTL</th>
                                 <th>Priority</th>
+                                <th>Comments</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -453,6 +481,18 @@ if (class_exists('LicenseManager')) {
                                         <?php endif; ?>
                                     </td>
                                     <td>
+                                        <?php $latest = $latestComments[$record['id']]['comment'] ?? ''; $has = $latest!==''; ?>
+                                        <button type="button" class="btn <?php echo $has ? 'btn-outline-info' : 'btn-outline-secondary'; ?> btn-sm record-comment-btn"
+                                            data-record-id="<?php echo $record['id']; ?>"
+                                            data-comment="<?php echo htmlspecialchars($latest); ?>"
+                                            data-bs-toggle="popover" data-bs-trigger="hover focus"
+                                            data-bs-placement="top" data-bs-html="true" title="Comment"
+                                            data-bs-content="<?php echo htmlspecialchars($has ? nl2br(htmlentities(mb_strimwidth($latest,0,400,'…'))) : '<em>No comment</em>'); ?>"
+                                            onclick="openRecordCommentModal(<?php echo $record['id']; ?>)">
+                                            <i class="bi bi-chat-dots"></i>
+                                        </button>
+                                    </td>
+                                    <td>
                                         <div class="btn-group btn-group-sm">
                                             <?php if ($isSystemRecord): ?>
                                                 <div title="Change in System Settings"
@@ -486,6 +526,28 @@ if (class_exists('LicenseManager')) {
                         </tbody>
                     </table>
                 </div>
+                                <!-- Single Record Comment Modal -->
+                                                <div class="modal fade" id="recordCommentModal" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title"><i class="bi bi-chat-dots me-2"></i>Record Comment</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                                <form method="POST" action="?page=records&domain_id=<?php echo $domainId; ?>&action=comment" id="recordCommentForm">
+                                                                    <textarea name="comment" id="recordCommentText" class="form-control mb-2" rows="4" maxlength="2000" placeholder="Enter comment (leave blank to clear)"></textarea>
+                                                                    <input type="hidden" name="record_id" id="recordCommentRecordId" value="">
+                                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                                                                    <div class="d-flex justify-content-between">
+                                                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearRecordCommentForm()"><i class="bi bi-x-circle me-1"></i>Clear</button>
+                                                                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Save</button>
+                                                                    </div>
+                                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
                 <!-- Pagination -->
                 <?php if ($totalPages > 1): ?>
@@ -608,6 +670,17 @@ if (class_exists('LicenseManager')) {
         }
     }
 
+function openRecordCommentModal(recordId){
+    const btn = document.querySelector('.record-comment-btn[data-record-id="'+recordId+'"]');
+    document.getElementById('recordCommentRecordId').value = recordId;
+    document.getElementById('recordCommentText').value = btn ? (btn.getAttribute('data-comment')||'') : '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('recordCommentModal')).show();
+}
+function clearRecordCommentForm(){
+    document.getElementById('recordCommentText').value='';
+}
+function escapeHtml(str){ return str.replace(/[&<>'"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;","\"":"&quot;"}[c])); }
+
     // Initialize tooltips
     document.addEventListener('DOMContentLoaded', function() {
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -615,6 +688,12 @@ if (class_exists('LicenseManager')) {
             return new bootstrap.Tooltip(tooltipTriggerEl);
         });
     });
+        document.addEventListener('DOMContentLoaded', function(){
+            // Initialize all popovers (record comment buttons have data-bs-toggle="popover")
+            document.querySelectorAll('[data-bs-toggle="popover"]').forEach(el => {
+                    new bootstrap.Popover(el);
+            });
+        });
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

@@ -6,6 +6,29 @@
 $domain = new Domain();
 $db = Database::getInstance();
 
+// Handle zone comment form post
+if (isset($_GET['action']) && $_GET['action'] === 'zone_comment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
+        $_SESSION['error'] = 'Security token mismatch.';
+        header('Location: ?page=zone_manage');
+        exit;
+    }
+    $zDomainId = intval($_POST['domain_id'] ?? 0);
+    $commentText = trim($_POST['comment'] ?? '');
+    if ($zDomainId > 0) {
+        try {
+            $zcSet = new ZoneComments();
+            if ($commentText === '') { $zcSet->clearComment($zDomainId); }
+            else { $zcSet->setComment($zDomainId, $currentUser['username'], $commentText); }
+            $_SESSION['success'] = 'Zone comment saved.';
+        } catch (Exception $e) {
+            $_SESSION['error'] = 'Zone comment error: ' . $e->getMessage();
+        }
+    }
+    header('Location: ?page=zone_manage');
+    exit;
+}
+
 // Get current user and determine access level
 $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 
@@ -373,6 +396,7 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                 <?php endif; ?>
                                 <th><?php renderZoneHeader('DNSSEC','dnssec_enabled',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <th><?php renderZoneHeader('Created','domain_created',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
+                                <th>Comment</th>
                                 <th class="text-end">Actions</th>
                             </tr>
                         </thead>
@@ -439,7 +463,24 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                             <span class="text-muted">-</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-end">
+                                    <td>
+                                        <?php 
+                                            // Fetch single zone comment inline (simple query per row acceptable for now; could batch optimize)
+                                            $zc = new ZoneComments();
+                                            $zComment = $zc->getComment($domainRow['id']);
+                                            $commentText = $zComment['comment'] ?? '';
+                                            $hasZ = $commentText !== '';
+                                        ?>
+                                        <button type="button" class="btn <?php echo $hasZ ? 'btn-outline-info' : 'btn-outline-secondary'; ?> btn-sm zone-comment-btn"
+                                            data-domain-id="<?php echo $domainRow['id']; ?>"
+                                            data-comment="<?php echo htmlspecialchars($commentText); ?>"
+                                            data-bs-toggle="popover" data-bs-trigger="hover focus" data-bs-placement="top" data-bs-html="true" title="Comment"
+                                            data-bs-content="<?php echo htmlspecialchars($hasZ ? nl2br(htmlentities(mb_strimwidth($commentText,0,400,'…'))) : '<em>No comment</em>'); ?>"
+                                            onclick="openZoneCommentModal(<?php echo $domainRow['id']; ?>)">
+                                            <i class="bi bi-chat-dots"></i>
+                                        </button>
+                                    </td>
+                                                                        <td class="text-end">
                                         <div class="btn-group btn-group-sm">
                                             <a href="?page=records&domain_id=<?php echo $domainRow['id']; ?>" 
                                                class="btn btn-outline-primary" title="Manage Records">
@@ -488,3 +529,41 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
 </div>
 
 <?php include $_SERVER['DOCUMENT_ROOT'] . '/includes/footer.php'; ?>
+
+<!-- Zone Comment Modal (single comment) -->
+<div class="modal fade" id="zoneCommentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-chat-dots me-2"></i>Zone Comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" action="?page=zone_manage&action=zone_comment" id="zoneCommentForm">
+                    <textarea name="comment" id="zoneCommentText" class="form-control mb-2" rows="4" maxlength="2000" placeholder="Enter comment (leave blank to clear)"></textarea>
+                    <input type="hidden" name="domain_id" id="zoneCommentDomainId" value="">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
+                    <div class="d-flex justify-content-between">
+                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="clearZoneCommentForm()"><i class="bi bi-x-circle me-1"></i>Clear</button>
+                        <button type="submit" class="btn btn-primary btn-sm"><i class="bi bi-save me-1"></i>Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function openZoneCommentModal(domainId){
+    const btn = document.querySelector('.zone-comment-btn[data-domain-id="'+domainId+'"]');
+    document.getElementById('zoneCommentDomainId').value = domainId;
+    document.getElementById('zoneCommentText').value = btn ? (btn.getAttribute('data-comment')||'') : '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('zoneCommentModal')).show();
+}
+function clearZoneCommentForm(){ document.getElementById('zoneCommentText').value=''; }
+document.addEventListener('DOMContentLoaded', function(){
+    document.querySelectorAll('.zone-comment-btn').forEach(btn=>{
+        new bootstrap.Popover(btn);
+    });
+});
+</script>

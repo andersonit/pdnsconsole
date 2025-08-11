@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     try {
         
-        if ($action === 'update_system_settings') {
+    if ($action === 'update_system_settings') {
             $systemSettings = [
                 'session_timeout' => intval($_POST['session_timeout'] ?? 3600),
                 'max_login_attempts' => intval($_POST['max_login_attempts'] ?? 5),
@@ -38,8 +38,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'records_per_page' => intval($_POST['records_per_page'] ?? 25),
                 'timezone' => trim($_POST['timezone'] ?? 'UTC'),
                 'max_upload_size' => intval($_POST['max_upload_size'] ?? 5242880),
-                'allowed_logo_types' => trim($_POST['allowed_logo_types'] ?? 'image/jpeg,image/png,image/gif')
+        'allowed_logo_types' => trim($_POST['allowed_logo_types'] ?? 'image/jpeg,image/png,image/gif')
             ];
+
+        // PowerDNS API optional settings
+            $pdnsApiHost = trim($_POST['pdns_api_host'] ?? '');
+            $pdnsApiPort = trim($_POST['pdns_api_port'] ?? '8081');
+            $pdnsApiServerId = trim($_POST['pdns_api_server_id'] ?? 'localhost');
+            $pdnsApiKey = $_POST['pdns_api_key'] ?? ''; // allow blank to keep existing
             
             // Validate values
             if ($systemSettings['session_timeout'] < 300) {
@@ -74,12 +80,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
+            // Validate PDNS API host (allow empty, IP, hostname)
+            if ($pdnsApiHost !== '' && !filter_var($pdnsApiHost, FILTER_VALIDATE_IP) && !preg_match('/^[A-Za-z0-9.-]+$/', $pdnsApiHost)) {
+                throw new Exception('Invalid PowerDNS API Host/IP.');
+            }
+            if ($pdnsApiPort !== '' && (!ctype_digit($pdnsApiPort) || (int)$pdnsApiPort < 1 || (int)$pdnsApiPort > 65535)) {
+                throw new Exception('Invalid PowerDNS API Port.');
+            }
+            if ($pdnsApiServerId !== '' && !preg_match('/^[A-Za-z0-9._-]+$/', $pdnsApiServerId)) {
+                throw new Exception('Invalid PowerDNS Server ID.');
+            }
+
             // Update all system settings
             foreach ($systemSettings as $key => $value) {
                 $db->execute(
                     "UPDATE global_settings SET setting_value = ? WHERE setting_key = ?",
                     [$value, $key]
                 );
+            }
+
+            // Upsert PowerDNS API host/port (empty host clears both host and key)
+            $audit = new AuditLog();
+            $userIdForAudit = $_SESSION['user_id'] ?? null;
+            $oldHost = $systemSettings['pdns_api_host'] ?? '';
+            $oldPort = $systemSettings['pdns_api_port'] ?? '';
+            $oldServerId = $systemSettings['pdns_api_server_id'] ?? '';
+
+            if ($pdnsApiHost === '') {
+                $db->execute("DELETE FROM global_settings WHERE setting_key IN ('pdns_api_host','pdns_api_port','pdns_api_server_id','pdns_api_key_enc')");
+                if ($userIdForAudit && ($oldHost || $oldPort || $oldServerId)) {
+                    $audit->logSettingUpdated($userIdForAudit, 'pdns_api_cleared', 'configured', 'removed');
+                }
+            } else {
+                $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('pdns_api_host', ?, 'PowerDNS API host or IP', 'dns') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$pdnsApiHost]);
+                $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('pdns_api_port', ?, 'PowerDNS API port', 'dns') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$pdnsApiPort]);
+                $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('pdns_api_server_id', ?, 'PowerDNS server-id path segment', 'dns') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$pdnsApiServerId]);
+                if (trim($pdnsApiKey) !== '') {
+                    $enc = new Encryption();
+                    $encKey = $enc->encrypt($pdnsApiKey);
+                    $db->execute("INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES ('pdns_api_key_enc', ?, 'Encrypted PowerDNS API key', 'dns') ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)", [$encKey]);
+                    if ($userIdForAudit) { $audit->logSettingUpdated($userIdForAudit, 'pdns_api_key_enc', '[hidden]', '[updated]'); }
+                }
+                if ($userIdForAudit) {
+                    if ($oldHost !== $pdnsApiHost) { $audit->logSettingUpdated($userIdForAudit, 'pdns_api_host', $oldHost, $pdnsApiHost); }
+                    if ($oldPort !== $pdnsApiPort) { $audit->logSettingUpdated($userIdForAudit, 'pdns_api_port', $oldPort, $pdnsApiPort); }
+                    if ($oldServerId !== $pdnsApiServerId) { $audit->logSettingUpdated($userIdForAudit, 'pdns_api_server_id', $oldServerId, $pdnsApiServerId); }
+                }
             }
             
             $message = 'System settings updated successfully.';
@@ -138,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get current system settings
 $systemSettings = [];
-$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types'];
+$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types', 'pdns_api_host', 'pdns_api_port', 'pdns_api_server_id', 'pdns_api_key_enc'];
 
 foreach ($systemKeys as $key) {
     $setting = $db->fetch(
@@ -146,6 +192,24 @@ foreach ($systemKeys as $key) {
         [$key]
     );
     $systemSettings[$key] = $setting['setting_value'] ?? '';
+}
+
+// Decrypt API key for masked display (never show full key)
+$pdnsApiKeyMasked = '';
+$pdnsApiKeyPlain = '';
+if (!empty($systemSettings['pdns_api_key_enc'])) {
+    try {
+        $enc = new Encryption();
+        $realKey = $enc->decrypt($systemSettings['pdns_api_key_enc']);
+        $pdnsApiKeyPlain = $realKey;
+        if (strlen($realKey) > 6) {
+            $pdnsApiKeyMasked = substr($realKey, 0, 3) . str_repeat('*', max(3, strlen($realKey)-6)) . substr($realKey, -3);
+        } else {
+            $pdnsApiKeyMasked = str_repeat('*', strlen($realKey));
+        }
+    } catch (Exception $e) {
+        $pdnsApiKeyMasked = '[decryption error]';
+    }
 }
 
 // DNS & Email forms moved to dedicated pages
@@ -194,25 +258,16 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="action" value="update_system_settings">
-                        
+
                         <div class="mb-3">
                             <label for="session_timeout" class="form-label">Session Timeout (seconds)</label>
-                            <input type="number" class="form-control" id="session_timeout" name="session_timeout" 
-                                   value="<?php echo htmlspecialchars($systemSettings['session_timeout']); ?>" min="300" required>
+                            <input type="number" class="form-control" id="session_timeout" name="session_timeout" value="<?php echo htmlspecialchars($systemSettings['session_timeout']); ?>" min="300" required>
                             <small class="text-muted">How long users stay logged in (minimum 300 seconds)</small>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="max_login_attempts" class="form-label">Max Login Attempts</label>
-                            <input type="number" class="form-control" id="max_login_attempts" name="max_login_attempts" 
-                                   value="<?php echo htmlspecialchars($systemSettings['max_login_attempts']); ?>" min="1" max="20" required>
-                            <small class="text-muted">Failed attempts before account lockout</small>
-                        </div>
-                        
+
                         <div class="mb-3">
                             <label for="default_tenant_domains" class="form-label">Default Tenant Domain Limit</label>
-                            <input type="number" class="form-control" id="default_tenant_domains" name="default_tenant_domains" 
-                                   value="<?php echo htmlspecialchars($systemSettings['default_tenant_domains']); ?>" min="0" required>
+                            <input type="number" class="form-control" id="default_tenant_domains" name="default_tenant_domains" value="<?php echo htmlspecialchars($systemSettings['default_tenant_domains']); ?>" min="0" required>
                             <small class="text-muted">Default maximum domains per tenant (0 = unlimited)</small>
                         </div>
                         
@@ -302,6 +357,47 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <small class="text-muted">Select which file types are allowed for logo uploads</small>
                         </div>
                         
+                        <div class="mb-4">
+                            <hr>
+                            <h6 class="fw-semibold mb-3"><i class="bi bi-link-45deg me-1"></i>PowerDNS API (Optional, but required for DNSSEC)</h6>
+                            <div class="form-text mb-2">Used for DNSSEC key generation, rectification & signed zone operations. All settings in PowerDNS Server pdns.conf file.
+                                Must enable 'api=yes', 'webserver=yes', then set 'api-key', 'webserver-address' and 'webserver-port'.
+                                Use setting 'webserver-allow-from' to restrict access to IP of PDNS Console.</div>
+                            <div class="mb-3">
+                                <label for="pdns_api_host" class="form-label">API Hostname / IP</label>
+                                <input type="text" class="form-control" id="pdns_api_host" name="pdns_api_host" placeholder="127.0.0.1 or pdns.internal" value="<?php echo htmlspecialchars($systemSettings['pdns_api_host'] ?? ''); ?>">
+                                <small class="text-muted">Leave blank to disable API integration. Hostname or IP only.</small>
+                            </div>
+                            <div class="row g-3 align-items-end">
+                                <div class="col-sm-3">
+                                    <label for="pdns_api_port" class="form-label">Port</label>
+                                    <input type="number" class="form-control" id="pdns_api_port" name="pdns_api_port" value="<?php echo htmlspecialchars($systemSettings['pdns_api_port'] ?: '8081'); ?>" min="1" max="65535">
+                                </div>
+                                <div class="col-sm-3">
+                                    <label for="pdns_api_server_id" class="form-label">Server ID</label>
+                                    <input type="text" class="form-control" id="pdns_api_server_id" name="pdns_api_server_id" value="<?php echo htmlspecialchars($systemSettings['pdns_api_server_id'] ?: 'localhost'); ?>" placeholder="localhost">
+                                </div>
+                                <div class="col-sm-4">
+                                    <label for="pdns_api_key" class="form-label">API Key</label>
+                                    <div class="input-group">
+                                        <input type="password" class="form-control" id="pdns_api_key" name="pdns_api_key" placeholder="<?php echo $pdnsApiKeyMasked ? 'Stored: '.$pdnsApiKeyMasked : 'Enter API Key'; ?>" aria-describedby="pdnsKeyToggle" data-secret="<?php echo htmlspecialchars($pdnsApiKeyPlain); ?>" autocomplete="off">
+                                        <button class="btn btn-outline-secondary" type="button" id="pdnsKeyToggle" aria-label="Show API key" data-state="hidden">
+                                            <i class="bi bi-eye" id="pdnsKeyToggleIcon"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="col-sm-2 text-sm-start">
+                                    <button type="button" class="btn btn-outline-primary w-100" id="btnTestPdns" style="margin-top:2px;">
+                                        <i class="bi bi-plug"></i>
+                                        <span class="d-none d-lg-inline"> Test</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <span id="pdnsTestResult" class="small text-muted"></span>
+                            </div>
+                            <small class="text-muted d-block mt-2">Clearing hostname/IP removes all PDNS settings. Save settings before testing.</small>
+                        </div>
                         <div class="d-grid">
                             <button type="submit" class="btn btn-success">
                                 <i class="bi bi-check-lg me-1"></i>
@@ -326,6 +422,69 @@ document.addEventListener('DOMContentLoaded', function() {
     function updateLogoTypes() { hiddenLogoTypesInput.value = Array.from(logoTypeCheckboxes).filter(cb=>cb.checked).map(cb=>cb.value).join(','); }
     logoTypeCheckboxes.forEach(cb=>cb.addEventListener('change', updateLogoTypes));
     updateLogoTypes();
+
+    const testBtn = document.getElementById('btnTestPdns');
+    if (testBtn) {
+        testBtn.addEventListener('click', function(){
+            const host = document.getElementById('pdns_api_host').value.trim();
+            const resultEl = document.getElementById('pdnsTestResult');
+            resultEl.textContent = 'Testing...';
+            resultEl.className = 'ms-2 small text-muted';
+            if(!host){ resultEl.textContent='Host required'; resultEl.className='ms-2 small text-danger'; return; }
+            const fd = new FormData();
+            fd.append('action','test_connection');
+            // Use absolute path to avoid relative directory issues
+            fetch('/api/pdns.php', { method:'POST', body: fd, credentials:'same-origin' })
+              .then(async r => {
+                  const text = await r.text();
+                  let j = null; let parseErr = null;
+                  try { j = JSON.parse(text); } catch(e){ parseErr = e; }
+                  if (!j) {
+                     resultEl.textContent = 'Unexpected response (see console)';
+                     resultEl.className='ms-2 small text-danger';
+                     console.error('PDNS test raw response:', text, parseErr);
+                     return;
+                  }
+                  if(j.success){
+                      resultEl.textContent='Connection OK';
+                      resultEl.className='ms-2 small text-success';
+                  } else {
+                      resultEl.textContent='Failed: '+(j.error||j.message||'Unknown error');
+                      resultEl.className='ms-2 small text-danger';
+                  }
+              })
+              .catch(e=>{ resultEl.textContent='Error: '+e; resultEl.className='ms-2 small text-danger'; });
+        });
+    }
+
+    const keyToggleBtn = document.getElementById('pdnsKeyToggle');
+    const keyInput = document.getElementById('pdns_api_key');
+    const keyIcon = document.getElementById('pdnsKeyToggleIcon');
+    if (keyToggleBtn && keyInput && keyIcon) {
+        const originalPlaceholder = keyInput.getAttribute('placeholder');
+        keyToggleBtn.addEventListener('click', function(){
+            const hidden = keyInput.type === 'password';
+            keyInput.type = hidden ? 'text' : 'password';
+            keyToggleBtn.setAttribute('aria-label', hidden ? 'Hide API key' : 'Show API key');
+            keyToggleBtn.dataset.state = hidden ? 'visible' : 'hidden';
+            keyIcon.classList.toggle('bi-eye');
+            keyIcon.classList.toggle('bi-eye-slash');
+            if (hidden) {
+                // Show real key
+                const secret = keyInput.dataset.secret || '';
+                if (secret) {
+                    keyInput.value = secret;
+                    keyInput.removeAttribute('placeholder');
+                }
+            } else {
+                // Hide key: clear field (so we don't overwrite unless user re-enters) and restore placeholder
+                if (keyInput.value === (keyInput.dataset.secret||'')) {
+                    keyInput.value = '';
+                }
+                keyInput.setAttribute('placeholder', originalPlaceholder);
+            }
+        });
+    }
 });
 </script>
 
