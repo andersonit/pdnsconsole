@@ -107,6 +107,7 @@ if (!isset($error) && $domainInfo) {
                             $grp = strtolower(($k['keytype'] ?? '').'|'.($k['algorithm'] ?? ''));
                             $list = $groups[$grp] ?? [];
                             $newestId = $list ? end($list)['id'] : null;
+                            // Default: no lifecycle badge unless a timed rollover or scheduled deletion is in effect
                             $status = '—';
                             // Deactivation marker for deletion countdown
                             $deactMarkerKind = 'PDNSCONSOLE-OLDKEY-'.$id.'-DEACTIVATED';
@@ -124,13 +125,7 @@ if (!isset($error) && $domainInfo) {
                                         $keyActionLock[$id] = true;
                                     }
                                 }
-                            } else {
-                                // Active single key or add-mode extras
-                                if($active){
-                                    $status = '<span class="badge bg-success">Active</span>';
-                                    if(count(array_filter($list, fn($x)=>!empty($x['active'])))>1){ $status .= '<br><small>Multiple active</small>'; }
-                                }
-                            }
+                            } // else: keep '—' for normal state
                             $keyLifecycle[$id] = $status;
                         }
                     } catch(Exception $eMeta) { /* ignore lifecycle computation errors */ }
@@ -362,9 +357,9 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         </tr>
                     </thead>
                     <tbody id="dnssecKeysBody">
-                        <?php if (empty($keys)): ?>
+            <?php if (empty($keys)): ?>
                             <tr>
-                                <td colspan="6" class="text-muted">No keys found.</td>
+                <td colspan="8" class="text-muted">No keys found.</td>
                             </tr>
                         <?php else: foreach ($keys as $k): $locked = !empty($keyActionLock[$k['id']]); ?>
                             <tr data-key-id="<?php echo htmlspecialchars($k['id']); ?>" data-active="<?php echo !empty($k['active']) ? '1':'0'; ?>" data-keytype="<?php echo htmlspecialchars(strtoupper($k['keytype'] ?? '')); ?>" data-alg="<?php echo htmlspecialchars($k['algorithm'] ?? ''); ?>" data-locked="<?php echo $locked ? '1':'0'; ?>" data-dslist="<?php echo htmlspecialchars(!empty($k['ds']) ? implode('|', (array)$k['ds']) : ''); ?>">
@@ -595,7 +590,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         details.forEach(d=>{ if(d.ds) map[d.ds.toUpperCase().replace(/\s+/g,' ')]=d.status; });
         document.querySelectorAll('#dnssecKeysBody tr').forEach(r=>{
             const dsAttr = r.dataset.dslist || '';
-            const parentCell = r.querySelector('td:nth-child(7)'); // Adjusted after removing DS column
+            const parentCell = r.querySelector('td:nth-child(6)'); // Parent column is the 6th
             if(!parentCell) return;
             if(!dsAttr){ parentCell.innerHTML='—'; return; }
             const lines = dsAttr.split('|');
@@ -654,7 +649,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             if(cmp.match==='full'){ badgeClass='success'; badgeText='Full Match'; }
             else if(cmp.match==='partial'){ badgeClass='warning'; badgeText='Partial'; }
             else if(cmp.match==='none'){ badgeClass='danger'; badgeText='None'; }
-            let html = '<div class="d-flex align-items-center mb-1">Parent DS Status: <span class="badge bg-'+badgeClass+' ms-2">'+badgeText+'</span></div>';
+            let html = '<div class="d-flex align-items-center mb-1"><h6>Parent DS Status:</h6> <span class="badge bg-'+badgeClass+' ms-2">'+badgeText+'</span></div>';
             html += '<div class="mb-1">Published: '+(cmp.published||0)+' | Missing: '+(cmp.missing||0)+' | Extra: '+(cmp.extra||0)+'</div>';
             html += '<div class="table-responsive"><table class="table table-bordered table-sm mb-0"><thead><tr><th>DS</th><th>Status</th></tr></thead><tbody>';
             details.forEach(d=>{ const st=d.status; let cls='secondary'; if(st==='published') cls='success'; else if(st==='missing') cls='danger'; else if(st==='extra') cls='warning'; html+='<tr><td class="small">'+d.ds.replace(/</g,'&lt;')+'</td><td><span class="badge bg-'+cls+'">'+st+'</span></td></tr>'; });
@@ -688,12 +683,12 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
     function updateRolloverSummary(){
         const box = document.getElementById('rolloverStatusContent'); if(!box) return;
         const rows = [...document.querySelectorAll('#dnssecKeysBody tr')];
-        const pending = rows.filter(r=>/Pending Retire|Retire Soon/.test(r.querySelector('td:last-child')?.innerText||''));
-        const rollover = rows.filter(r=>/Rollover/.test(r.querySelector('td:last-child')?.innerText||''));
+        const pending = rows.filter(r=>/Pending Retire|Retire Soon/.test(r.querySelector('td:nth-child(7)')?.innerText||''));
+        const rollover = rows.filter(r=>/Rollover/.test(r.querySelector('td:nth-child(7)')?.innerText||''));
         if(pending.length===0 && rollover.length===0){ box.innerHTML='<span class="text-muted">No active timed rollover.</span>'; return; }
         // Extract remaining days from text pattern 'in Xd' or 'Xd left'
         let days=[];
-        rows.forEach(r=>{ const txt=r.querySelector('td:last-child')?.innerText||''; const m=txt.match(/(\d+)d/); if(m) days.push(parseInt(m[1],10)); });
+        rows.forEach(r=>{ const txt=r.querySelector('td:nth-child(7)')?.innerText||''; const m=txt.match(/(\d+)d/); if(m) days.push(parseInt(m[1],10)); });
         const min=Math.min.apply(null, days);
         box.innerHTML = '<div class="small">Timed rollover in progress.<br><strong>Estimated completion:</strong> ~'+(min===Infinity?'?':min+'d')+' until old key deactivate.<br><em>Automated cleanup follows grace period.</em></div>';
     }
@@ -751,7 +746,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                 post('toggle_key',{ zone, key_id:id, active: '1' }, btn);
             }}));
     document.getElementById('btnConfirmDeactivate')?.addEventListener('click', e=>{ if(!pendingDeactivateId) return; const fakeBtn = document.querySelector('.btnToggleKey[data-key-id="'+pendingDeactivateId+'"]'); post('toggle_key',{ zone, key_id: pendingDeactivateId, active: '0' }, fakeBtn); ensureDeactivate().hide(); pendingDeactivateId=null; });
-    document.querySelectorAll('.btnDeleteKey').forEach(btn=>btn.addEventListener('click', e=>{ e.preventDefault(); if(!zone) return showMessage('danger','Zone missing'); if(btn.closest('tr')?.dataset.locked==='1') return; const id=btn.dataset.keyId; const row = btn.closest('tr'); pendingDeleteId = id; const ds=row.dataset.ds||'0'; document.getElementById('deleteKeyDetails').innerHTML = 'Deleting key <code>'+id+'</code> ('+row.dataset.keytype+' / '+row.dataset.alg+')'+(ds!=='0' ? ' with <strong>'+ds+'</strong> DS entr'+(ds==='1'?'y':'ies')+' at parent.' : '.'); ensureDelete().show(); }));
+    document.querySelectorAll('.btnDeleteKey').forEach(btn=>btn.addEventListener('click', e=>{ e.preventDefault(); if(!zone) return showMessage('danger','Zone missing'); if(btn.closest('tr')?.dataset.locked==='1') return; const id=btn.dataset.keyId; const row = btn.closest('tr'); pendingDeleteId = id; const dsList=(row.dataset.dslist||'').split('|').filter(Boolean); const dsCount = dsList.length; document.getElementById('deleteKeyDetails').innerHTML = 'Deleting key <code>'+id+'</code> ('+row.dataset.keytype+' / '+row.dataset.alg+')'+(dsCount>0 ? ' with <strong>'+dsCount+'</strong> DS entr'+(dsCount===1?'y':'ies')+' at parent.' : '.'); ensureDelete().show(); }));
     // Initialize tooltips for locked action buttons
     if(window.bootstrap){ document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el=>{ new bootstrap.Tooltip(el); }); }
     document.getElementById('btnConfirmDelete')?.addEventListener('click', e=>{ if(!pendingDeleteId) return; const btn = document.querySelector('.btnDeleteKey[data-key-id="'+pendingDeleteId+'"]'); post('delete_key',{ zone, key_id: pendingDeleteId }, btn); ensureDelete().hide(); pendingDeleteId=null; });

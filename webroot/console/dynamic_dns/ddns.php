@@ -154,7 +154,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <label class="form-check-label" for="is_active">Active</label>
                         </div>
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-info"><i class="bi bi-plus-circle me-1"></i>Create Token</button>
+                            <button type="submit" class="btn btn-success text-light"><i class="bi bi-plus-circle me-1"></i>Create Token</button>
                         </div>
                     </form>
                 </div>

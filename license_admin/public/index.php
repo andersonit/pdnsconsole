@@ -9,6 +9,11 @@ if (!empty($config['ip_allow']) && !in_array($_SERVER['REMOTE_ADDR'] ?? '', $con
     exit;
 }
 
+// Sessions for flash messages and PRG
+if (session_status() !== PHP_SESSION_ACTIVE) {
+  session_start();
+}
+
 $pdo = null;
 if (!empty($config['db']['dsn'])) {
     try {
@@ -25,6 +30,18 @@ $messages = [];
 $generated = null;
 
 function h($v){return htmlspecialchars($v, ENT_QUOTES, 'UTF-8');}
+
+// Retrieve flash after redirect
+if (!empty($_SESSION['la_flash'])) {
+  $flash = $_SESSION['la_flash'];
+  unset($_SESSION['la_flash']);
+  if (!empty($flash['messages']) && is_array($flash['messages'])) {
+    $messages = array_merge($messages, $flash['messages']);
+  }
+  if (array_key_exists('generated', $flash)) {
+    $generated = $flash['generated'];
+  }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
@@ -91,6 +108,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } catch (Throwable $e) {
         $messages[] = ['error','Generation failed: '.$e->getMessage()];
     }
+    // PRG: store flash and redirect to avoid resubmission on refresh
+    $_SESSION['la_flash'] = [ 'messages' => $messages, 'generated' => $generated ];
+    header('Location: ' . strtok($_SERVER['REQUEST_URI'], '?'));
+    exit;
 }
 
 ?><!DOCTYPE html>
@@ -105,6 +126,8 @@ label{display:block;margin-top:.75rem;font-weight:600}
 input[type=text],input[type=number],select{width:100%;padding:.5rem;border:1px solid #bbb;border-radius:4px;font-size:14px}
 button{margin-top:1rem;padding:.6rem 1.2rem;font-size:14px;background:#1b6ef3;color:#fff;border:0;border-radius:4px;cursor:pointer}
 button:hover{background:#1559c2}
+.btn-secondary{background:#6c757d}
+.btn-secondary:hover{background:#5a6268}
 .alert{padding:.6rem .8rem;border-radius:4px;margin-bottom:.5rem;font-size:14px}
 .alert.error{background:#ffe5e5;color:#8b0000}
 .alert.ok{background:#e5ffe9;color:#055a1c}
@@ -141,7 +164,10 @@ pre.key{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-wi
   <label>Installation Code (required)
     <input type="text" name="installation_id" required value="<?php echo h($_POST['installation_id'] ?? '') ?>" placeholder="Paste the Installation Code from the Console (starts with PDNS-)" />
   </label>
-  <button type="submit">Generate</button>
+  <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+    <button type="submit">Generate</button>
+    <button type="button" class="btn-secondary" id="btnResetFields">Reset Fields</button>
+  </div>
 </form>
 <?php if ($generated): ?>
 <section>
@@ -214,5 +240,20 @@ function fallbackCopy(text, cb){
   }catch(e){}
   if (typeof cb === 'function') cb();
 }
+// Reset form fields without submitting
+document.addEventListener('DOMContentLoaded', function(){
+  var btn = document.getElementById('btnResetFields');
+  if (!btn) return;
+  btn.addEventListener('click', function(){
+    var form = this.closest('form');
+    if (!form) return;
+    // Clear inputs
+    Array.prototype.forEach.call(form.querySelectorAll('input[type="text"], input[type="number"]'), function(el){
+      if (el.name === 'domains') el.value = '0'; else el.value = '';
+    });
+    var sel = form.querySelector('select[name="type"]');
+    if (sel) sel.value = 'commercial';
+  });
+});
 </script>
 </html>

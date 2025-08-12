@@ -133,6 +133,8 @@ $recordsList = [];
 $totalRecords = 0;
 $recordStats = [];
 $dnssecEnabled = null; // will remain null if status cannot be determined
+// Map of record_id => ['active'=>bool, 'count'=>int] for DDNS tokens
+$ddnsMap = [];
 
 // Check for session messages
 $sessionSuccess = $_SESSION['success'] ?? '';
@@ -160,6 +162,16 @@ if ($domainInfo) {
             $ckActive = $db2->fetch("SELECT COUNT(*) AS c FROM cryptokeys WHERE domain_id = ? AND active = 1", [$domainId]);
             $dnssecEnabled = ($ckActive['c'] ?? 0) > 0;
         } catch (Exception $eDnssecStatus) { $dnssecEnabled = null; }
+        // Build DDNS map: for each record, whether any tokens exist and if any are active
+        try {
+            $ddnsRows = $db->fetchAll("SELECT record_id, MAX(is_active) AS is_active, COUNT(*) AS cnt FROM dynamic_dns_tokens WHERE domain_id = ? GROUP BY record_id", [$domainId]);
+            foreach ($ddnsRows as $r) {
+                $ddnsMap[(int)$r['record_id']] = [
+                    'active' => ((int)($r['is_active'] ?? 0)) > 0,
+                    'count' => (int)($r['cnt'] ?? 0)
+                ];
+            }
+        } catch (Exception $eDdns) { /* table may not exist or no tokens; ignore */ }
     // New record comments integration
     $recordComments = new RecordComments();
     $commentCounts = $recordComments->getCountsForDomain($domainId);
@@ -352,10 +364,17 @@ if (class_exists('LicenseManager')) {
             <div class="card-header py-2">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <div class="d-flex flex-column">
-                        <h5 class="card-title mb-0 d-flex align-items-center">
+                        <h5 class="card-title mb-0 d-flex align-items-center flex-wrap gap-2">
                             <i class="bi bi-list-ul me-2"></i>
                             DNS Records
                             <?php if ($totalRecords > 0): ?><span class="badge bg-secondary ms-2"><?php echo $totalRecords; ?></span><?php endif; ?>
+                            <!-- Moved DNSSEC and DDNS to the left of header after title -->
+                            <a href="?page=zone_dnssec&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-success btn-sm ms-2" data-bs-toggle="tooltip" data-bs-placement="top" title="Manage DNSSEC for this zone">
+                                <i class="bi bi-shield-lock me-1"></i> DNSSEC
+                            </a>
+                            <a href="?page=zone_ddns&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-info btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Configure Dynamic DNS">
+                                <i class="bi bi-arrow-repeat me-1"></i> DDNS
+                            </a>
                         </h5>
                         <?php if ($totalRecords > 0): ?><small class="text-muted mb-0"><?php echo formatCountRange($offset + 1, min($offset + $limit, $totalRecords), $totalRecords, 'records'); ?></small><?php endif; ?>
                     </div>
@@ -363,11 +382,8 @@ if (class_exists('LicenseManager')) {
                         <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=add" class="btn btn-primary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Add a new DNS record">
                             <i class="bi bi-plus-circle me-1"></i> Add New Record
                         </a>
-                        <a href="?page=zone_dnssec&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-success btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Manage DNSSEC for this zone">
-                            <i class="bi bi-shield-lock me-1"></i> DNSSEC
-                        </a>
-                        <a href="?page=zone_ddns&domain_id=<?php echo $domainId; ?>" class="btn btn-outline-info btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Configure Dynamic DNS">
-                            <i class="bi bi-arrow-repeat me-1"></i> DDNS
+                        <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=bulk" class="btn btn-outline-success btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Add multiple records at once">
+                            <i class="bi bi-plus-square me-1"></i> Add Bulk
                         </a>
                         <a href="?page=records&domain_id=<?php echo $domainId; ?>&action=export" class="btn btn-outline-secondary btn-sm" data-bs-toggle="tooltip" data-bs-placement="top" title="Export records to CSV">
                             <i class="bi bi-download me-1"></i> Export
@@ -450,6 +466,7 @@ if (class_exists('LicenseManager')) {
                                 </th>
                                 <th>TTL</th>
                                 <th>Priority</th>
+                                <th>DDNS</th>
                                 <th>Comments</th>
                                 <th>Actions</th>
                             </tr>
@@ -493,6 +510,22 @@ if (class_exists('LicenseManager')) {
                                         <?php else: ?>
                                             <span class="text-muted">—</span>
                                         <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $ddns = $ddnsMap[$record['id']] ?? null;
+                                        $isEligible = in_array(strtoupper($record['type']), ['A','AAAA']);
+                                        if ($ddns && $isEligible) {
+                                            $active = !empty($ddns['active']);
+                                            $label = $active ? 'Active' : 'Configured';
+                                            $cls = $active ? 'bg-primary text-light' : 'bg-secondary';
+                                            echo '<a href="?page=zone_ddns&domain_id=' . $domainId . '" class="badge ' . $cls . '" data-bs-toggle="tooltip" data-bs-title="Manage Dynamic DNS tokens">' . $label . '</a>';
+                                        } elseif ($isEligible) {
+                                            echo '<a href="?page=zone_ddns&domain_id=' . $domainId . '" class="text-decoration-none small">—</a>';
+                                        } else {
+                                            echo '<span class="text-muted">—</span>';
+                                        }
+                                        ?>
                                     </td>
                                     <td>
                                         <?php $latest = $latestComments[$record['id']]['comment'] ?? ''; $has = $latest!==''; ?>
