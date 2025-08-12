@@ -25,6 +25,8 @@ try {
 } catch (Exception $e) { $error = 'Error loading zone: ' . $e->getMessage(); }
 
 $apiConfigured = false; $dnssecStatus = null; $keys = []; $dsRecords = []; $keyLifecycle = []; $keyActionLock = [];
+// Default zone name (prefer trailing dot) for actions even if zone fetch fails
+$zoneName = null;
 // Parent DS cache structures
 $parentDsSummary = null; $parentDsDetails = [];
 if (!isset($error) && $domainInfo) {
@@ -38,6 +40,8 @@ if (!isset($error) && $domainInfo) {
             // Build candidate zone names to try (PowerDNS typically stores with trailing dot)
             $base = rtrim($domainInfo['name'], '.');
             $candidates = [ $base . '.', $base, strtolower($base) . '.', strtolower($base) ];
+            // Use the first candidate as a sensible default for action buttons
+            $zoneName = $candidates[0];
             $z = null; $usedName = null; $errorsTried = [];
             foreach (array_unique($candidates) as $cand) {
                 try {
@@ -223,10 +227,25 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <?php endif; ?>
                         </div>
                     <?php elseif ($apiConfigured && $dnssecStatus && !empty($dnssecStatus['error'])): ?>
-                        <div class="alert alert-danger py-2">API Error: <?php echo htmlspecialchars($dnssecStatus['error']); ?></div>
+                        <div class="alert alert-warning py-2 mb-2">Zone lookup issue: <?php echo htmlspecialchars($dnssecStatus['error']); ?></div>
+                        <?php if (!empty($zoneName)): ?>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-success btn-sm" id="btnEnableDnssec" data-zone="<?php echo htmlspecialchars($zoneName); ?>">Enable DNSSEC</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btnFixTxtQuotes" data-zone="<?php echo htmlspecialchars($zoneName); ?>" title="Quote any unquoted TXT records and rectify the zone">Fix TXT quotes</button>
+                                <small class="text-muted">If the zone has malformed TXT records, fix them then retry enabling.</small>
+                            </div>
+                        <?php endif; ?>
                     <?php else: ?>
-                        <p class="text-muted mb-3">PowerDNS API not fully configured or DNSSEC disabled.</p>
-                        <a href="?page=admin_settings" class="btn btn-outline-secondary btn-sm">Configure API</a>
+                        <?php if ($apiConfigured): ?>
+                            <div class="d-flex align-items-center gap-2 flex-wrap">
+                                <button class="btn btn-success btn-sm" id="btnEnableDnssec" data-zone="<?php echo htmlspecialchars($zoneName ?: rtrim(($domainInfo['name'] ?? ''), '.') . '.'); ?>">Enable DNSSEC</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btnFixTxtQuotes" data-zone="<?php echo htmlspecialchars($zoneName ?: rtrim(($domainInfo['name'] ?? ''), '.') . '.'); ?>" title="Quote any unquoted TXT records and rectify the zone">Fix TXT quotes</button>
+                                <small class="text-muted">Zone status unavailable; if TXT content is malformed, fix it then retry enabling.</small>
+                            </div>
+                        <?php else: ?>
+                            <p class="text-muted mb-3">PowerDNS API not fully configured.</p>
+                            <a href="?page=admin_settings" class="btn btn-outline-secondary btn-sm">Configure API</a>
+                        <?php endif; ?>
                     <?php endif; ?>
                 </div>
             </div>
@@ -566,6 +585,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
     // DS copy
     const btnCopyDs = document.getElementById('btnCopyDs');
     const btnCheckParent = document.getElementById('btnCheckParentDs');
+    const btnFixTxt = document.getElementById('btnFixTxtQuotes');
     let parentDsLastCheck = <?php echo isset($parentDsSummary['checked_at']) ? '"'.htmlspecialchars($parentDsSummary['checked_at']).'"' : 'null'; ?>;
     let parentDsLastCheckDisplay = <?php echo isset($parentDsSummary['checked_at_display']) ? '"'.htmlspecialchars($parentDsSummary['checked_at_display']).'"' : 'null'; ?>;
     function fmtTs(ts){ if(!ts) return ''; return ts; } // server already formatted
@@ -602,6 +622,23 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         const dsText = document.getElementById('dsOutput')?.innerText || '';
         if(!dsText) return showMessage('warning','No DS records to copy');
         navigator.clipboard.writeText(dsText).then(()=> showMessage('success','DS records copied to clipboard')).catch(()=> showMessage('danger','Copy failed'));
+    });
+    btnFixTxt?.addEventListener('click', async ()=>{
+        if(!zone) return showMessage('danger','Zone missing');
+        const old = btnFixTxt.innerHTML; btnFixTxt.disabled = true; btnFixTxt.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+        try {
+            const fd = new FormData(); fd.append('action','fix_txt_quotes'); fd.append('zone', zone);
+            const resp = await fetch(apiEndpoint, { method: 'POST', body: fd, credentials: 'same-origin' });
+            const raw = await resp.text(); let json; try { json = JSON.parse(raw); } catch(e){
+                const snippet = raw ? raw.toString().slice(0,200).replace(/</g,'&lt;').replace(/\n/g,' ') : '';
+                showMessage('danger','Invalid response from fix'+(snippet?': '+snippet:''));
+                return;
+            }
+            if(!resp.ok || json.error){ showMessage('danger', json.error || 'Fix failed'); return; }
+            showMessage('success', json.message || ('Fixed TXT quotes. Updated '+(json.updated||0)+' records.'));
+            setTimeout(()=>location.reload(), 800);
+        } catch(err){ showMessage('danger','Fix failed: '+err.message); }
+        finally { btnFixTxt.disabled=false; btnFixTxt.innerHTML = old; }
     });
     btnCheckParent?.addEventListener('click', async ()=>{
         if(!zone) return showMessage('danger','Zone missing');

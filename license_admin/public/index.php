@@ -30,48 +30,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $domains = (int)($_POST['domains'] ?? 0);
     $type = $_POST['type'] ?? 'commercial';
-    $installationId = trim($_POST['installation_id'] ?? '');
+  $installationId = trim($_POST['installation_id'] ?? '');
+  $hasErrors = false;
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        $messages[] = ['error','Invalid email'];
+    $messages[] = ['error','Invalid email'];
+    $hasErrors = true;
     }
     if ($domains < 0) {
-        $messages[] = ['error','Domains must be >= 0'];
+    $messages[] = ['error','Domains must be >= 0'];
+    $hasErrors = true;
+  }
+  if ($installationId === '') {
+    $messages[] = ['error','Installation code is required to bind the license. Paste the code from the Console.'];
+    $hasErrors = true;
     }
-    try {
+  if (!$hasErrors) try {
         $signer = new LicenseSigner($config['private_key_path']);
         $payload = [
             'email' => $email,
             'domains' => $domains,
             'type' => $type,
         ];
-        if ($installationId !== '') {
-            $payload['installation_id'] = $installationId;
-        }
+    // Always bind to installation
+    $payload['installation_id'] = $installationId;
         $generated = $signer->sign($payload);
 
-        if ($pdo) {
-            $pdo->beginTransaction();
-            // Find or create customer
-            $stmt = $pdo->prepare('SELECT id FROM customers WHERE email = ?');
-            $stmt->execute([$email]);
-            $cid = $stmt->fetchColumn();
-            if (!$cid) {
-                $stmt = $pdo->prepare('INSERT INTO customers (email, created_at) VALUES (?, NOW())');
-                $stmt->execute([$email]);
-                $cid = $pdo->lastInsertId();
-            }
-            // Insert license row
-            $stmt = $pdo->prepare('INSERT INTO licenses (customer_id, license_key, plan_name, domains_limit, status, created_at) VALUES (?,?,?,?,?,NOW())');
-            $stmt->execute([$cid, $generated, strtoupper($type), $domains, 'active']);
-            $lid = $pdo->lastInsertId();
-            // Event log
-            $stmt = $pdo->prepare('INSERT INTO license_events (license_id, event_type, details, created_at) VALUES (?,?,?,NOW())');
-            $stmt->execute([$lid, 'PORTAL_GENERATE', json_encode(['domains'=>$domains,'installation_id'=>$installationId])]);
-            $pdo->commit();
-        }
+    if ($pdo) {
+      $pdo->beginTransaction();
+      // Find or create customer
+      $stmt = $pdo->prepare('SELECT id FROM customers WHERE email = ?');
+      $stmt->execute([$email]);
+      $cid = $stmt->fetchColumn();
+      if (!$cid) {
+        // Minimal info: use email for required name field
+        $stmt = $pdo->prepare('INSERT INTO customers (email, name, created_at) VALUES (?,?, NOW())');
+        $stmt->execute([$email, $email]);
+        $cid = $pdo->lastInsertId();
+      }
+      // Avoid duplicate license rows on refresh: check if license_key already exists
+      $stmt = $pdo->prepare('SELECT id FROM licenses WHERE license_key = ? LIMIT 1');
+      $stmt->execute([$generated]);
+      $lid = $stmt->fetchColumn();
+      if (!$lid) {
+        // Insert license row (match schema: domain_limit, type, issued, optional installation_id)
+        $stmt = $pdo->prepare('INSERT INTO licenses (customer_id, installation_id, license_key, domain_limit, type, issued) VALUES (?,?,?,?,?,CURDATE())');
+        $stmt->execute([$cid, ($installationId !== '' ? $installationId : null), $generated, $domains, $type]);
+        $lid = $pdo->lastInsertId();
+        // Event log
+        $stmt = $pdo->prepare('INSERT INTO license_events (license_id, event_type, detail) VALUES (?,?,?)');
+        $stmt->execute([$lid, 'PORTAL_GENERATE', json_encode(['domains'=>$domains,'installation_id'=>$installationId])]);
+      } else {
+        // Existing license found; log a duplicate-generation event only
+        $stmt = $pdo->prepare('INSERT INTO license_events (license_id, event_type, detail) VALUES (?,?,?)');
+        $stmt->execute([$lid, 'PORTAL_GENERATE', json_encode(['domains'=>$domains,'installation_id'=>$installationId,'duplicate'=>true])]);
+      }
+      $pdo->commit();
+    }
         $messages[] = ['ok','License generated'];
-    } catch (Throwable $e) {
+  } catch (Throwable $e) {
         $messages[] = ['error','Generation failed: '.$e->getMessage()];
     }
 }
@@ -92,6 +109,8 @@ button:hover{background:#1559c2}
 .alert.error{background:#ffe5e5;color:#8b0000}
 .alert.ok{background:#e5ffe9;color:#055a1c}
 pre{background:#222;color:#eee;padding:1rem;border-radius:6px;overflow:auto;font-size:13px}
+/* Wrap long license key nicely */
+pre.key{white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere;max-width:100%;overflow-x:hidden}
 .small{font-size:12px;color:#555;margin-top:.25rem}
 .table{width:100%;border-collapse:collapse;margin-top:1.5rem}
 .table th,.table td{border:1px solid #ddd;padding:.4rem .5rem;font-size:13px;text-align:left}
@@ -119,15 +138,18 @@ pre{background:#222;color:#eee;padding:1rem;border-radius:6px;overflow:auto;font
   <label>Domains Limit
     <input type="number" name="domains" min="0" value="<?php echo h($_POST['domains'] ?? '0') ?>" />
   </label>
-  <label>Installation ID (optional lock)
-    <input type="text" name="installation_id" value="<?php echo h($_POST['installation_id'] ?? '') ?>" placeholder="Leave blank for portable license" />
+  <label>Installation Code (required)
+    <input type="text" name="installation_id" required value="<?php echo h($_POST['installation_id'] ?? '') ?>" placeholder="Paste the Installation Code from the Console (starts with PDNS-)" />
   </label>
   <button type="submit">Generate</button>
 </form>
 <?php if ($generated): ?>
 <section>
   <h2>Generated License Key</h2>
-  <pre class="key"><?php echo h($generated); ?></pre>
+  <div style="margin:.25rem 0 .5rem 0">
+    <button type="button" onclick="copyGeneratedKey(this)">Copy to Clipboard</button>
+  </div>
+  <pre id="genKey" class="key"><?php echo h($generated); ?></pre>
   <p class="small">Copy & paste this into the public console license page.</p>
 </section>
 <?php endif; ?>
@@ -135,19 +157,19 @@ pre{background:#222;color:#eee;padding:1rem;border-radius:6px;overflow:auto;font
 <section>
   <h2>Recent Licenses</h2>
   <?php
-    $stmt = $pdo->query('SELECT l.id, c.email, l.license_key, l.plan_name, l.domains_limit, l.status, l.created_at FROM licenses l JOIN customers c ON c.id = l.customer_id ORDER BY l.id DESC LIMIT 25');
+  $stmt = $pdo->query('SELECT l.id, c.email, l.license_key, l.type, l.domain_limit, l.revoked, l.created_at FROM licenses l JOIN customers c ON c.id = l.customer_id ORDER BY l.id DESC LIMIT 25');
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
     if ($rows): ?>
     <table class="table">
-      <thead><tr><th>ID</th><th>Email</th><th>Plan</th><th>Domains</th><th>Status</th><th>Created</th><th>Key</th></tr></thead>
+  <thead><tr><th>ID</th><th>Email</th><th>Type</th><th>Domains</th><th>Status</th><th>Created</th><th>Key</th></tr></thead>
       <tbody>
         <?php foreach($rows as $r): ?>
         <tr>
           <td><?php echo h($r['id']) ?></td>
           <td><?php echo h($r['email']) ?></td>
-          <td><?php echo h($r['plan_name']) ?></td>
-          <td><?php echo h($r['domains_limit']) ?></td>
-          <td><?php echo h($r['status']) ?></td>
+          <td><?php echo h($r['type']) ?></td>
+          <td><?php echo h($r['domain_limit']) ?></td>
+          <td><?php echo ($r['revoked'] ? 'revoked' : 'active') ?></td>
           <td><?php echo h($r['created_at']) ?></td>
           <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis" title="<?php echo h($r['license_key']) ?>">...</td>
         </tr>
@@ -162,4 +184,35 @@ pre{background:#222;color:#eee;padding:1rem;border-radius:6px;overflow:auto;font
 <hr />
 <p class="small">Version: 0.1-dev</p>
 </body>
+<script>
+function copyGeneratedKey(btn){
+  var el = document.getElementById('genKey');
+  if(!el){return;}
+  var text = el.textContent || '';
+  if (!text) {return;}
+  var done = function(){
+    var orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.disabled = true;
+    setTimeout(function(){ btn.textContent = orig; btn.disabled = false; }, 1400);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(function(){fallbackCopy(text, done);});
+  } else {
+    fallbackCopy(text, done);
+  }
+}
+function fallbackCopy(text, cb){
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }catch(e){}
+  if (typeof cb === 'function') cb();
+}
+</script>
 </html>

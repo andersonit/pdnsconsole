@@ -89,8 +89,8 @@ class PdnsApiClient {
         try {
             return $this->request('PATCH', $path, $payload);
         } catch (Exception $e) {
-            // PowerDNS versions prior to certain releases require a full PUT for dnssec toggle and reject PATCH with 422
-            if (strpos($e->getMessage(), '422') !== false) {
+            // Some PowerDNS versions require a full PUT for dnssec toggle and may return 422/409/500 on PATCH
+            if (strpos($e->getMessage(), '422') !== false || strpos($e->getMessage(), '409') !== false || strpos($e->getMessage(), '500') !== false) {
                 $zone = $this->getZone($zoneName);
                 if (!is_array($zone)) { throw $e; }
                 $putPayload = [
@@ -119,7 +119,7 @@ class PdnsApiClient {
         try {
             return $this->request('PATCH', $path, $payload);
         } catch (Exception $e) {
-            if (strpos($e->getMessage(), '422') !== false) {
+            if (strpos($e->getMessage(), '422') !== false || strpos($e->getMessage(), '409') !== false || strpos($e->getMessage(), '500') !== false) {
                 $zone = $this->getZone($zoneName);
                 if (!is_array($zone)) { throw $e; }
                 $putPayload = [
@@ -242,6 +242,11 @@ class PdnsApiClient {
         if ($httpCode >= 400) {
             $msg = 'PowerDNS API error ' . $httpCode;
             if (is_array($decoded) && isset($decoded['error'])) { $msg .= ' - ' . $decoded['error']; }
+            else if ($responseBody && (!is_string($contentType) || stripos($contentType, 'application/json') === false)) {
+                $snippet = trim(substr($responseBody, 0, 300));
+                $snippet = preg_replace('/\s+/', ' ', $snippet);
+                if ($snippet !== '') { $msg .= ' - ' . $snippet; }
+            }
             throw new Exception($msg);
         }
 

@@ -366,7 +366,7 @@ $pageTitle = 'Add DNS Zone';
 
                             <div class="row">
                                 <div class="col-12">
-                                    <div class="alert alert-info">
+                                    <div class="alert alert-info alert-static">
                                         <i class="bi bi-info-circle me-2"></i>
                                         <strong>Automatic Record Creation:</strong>
                                         <ul class="mb-0 mt-2">

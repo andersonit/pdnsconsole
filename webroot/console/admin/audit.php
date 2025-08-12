@@ -26,10 +26,18 @@ $filters['date_to'] = $_GET['date_to'] ?? '';
 $filters['ip_address'] = $_GET['ip_address'] ?? '';
 $filters['search'] = $_GET['search'] ?? '';
 
-// Pagination
-$page = max(1, intval($_GET['page'] ?? 1));
-$limit = 50;
-$offset = ($page - 1) * $limit;
+// Sorting & Pagination (avoid routing param collision: use 'p' for page num)
+$sort = $_GET['sort'] ?? 'created_at';
+$dir = strtolower($_GET['dir'] ?? 'desc');
+$allowedSort = ['created_at','action','table_name','record_id','ip_address','user'];
+if (!in_array($sort, $allowedSort, true)) { $sort = 'created_at'; }
+if (!in_array($dir, ['asc','desc'], true)) { $dir = 'desc'; }
+
+$pageNum = max(1, intval($_GET['p'] ?? 1));
+$perPage = intval($_GET['per_page'] ?? 50);
+if ($perPage < 10) $perPage = 10; if ($perPage > 200) $perPage = 200;
+$limit = $perPage;
+$offset = ($pageNum - 1) * $limit;
 
 // Get audit log data
 $auditEntries = [];
@@ -42,7 +50,7 @@ try {
         return $value !== '';
     });
     
-    $auditEntries = $auditLog->getAuditLog($cleanFilters, $limit, $offset);
+    $auditEntries = $auditLog->getAuditLog($cleanFilters, $limit, $offset, $sort, $dir);
     $totalCount = $auditLog->getAuditLogCount($cleanFilters);
     $auditStats = $auditLog->getAuditStats(null, 30); // Last 30 days stats
 } catch (Exception $e) {
@@ -50,7 +58,7 @@ try {
 }
 
 // Calculate pagination
-$totalPages = ceil($totalCount / $limit);
+$totalPages = max(1, (int)ceil($totalCount / $limit));
 
 // Get all users for filter dropdown
 $allUsers = [];
@@ -82,6 +90,70 @@ $pageTitle = 'System Audit Log';
 include __DIR__ . '/../../includes/header.php';
 ?>
 
+<?php
+// Render pagination controls while preserving current query params (using 'p' page param)
+if (!function_exists('render_audit_pagination')) {
+    function render_audit_pagination(array $params, int $current, int $total, bool $withJump = false) {
+        // Always preserve the route
+        $params['page'] = 'admin_audit';
+
+        $html = '<nav><ul class="pagination pagination-sm mb-0">';
+
+        // Prev
+        if ($current > 1) {
+            $params['p'] = $current - 1;
+            $html .= '<li class="page-item"><a class="page-link" href="?' . http_build_query($params) . '"><i class="bi bi-chevron-left"></i></a></li>';
+        } else {
+            $html .= '<li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>';
+        }
+
+        // Windowed pages around current
+        $start = max(1, $current - 2);
+        $end = min($total, $current + 2);
+        if ($start > 1) {
+            $params['p'] = 1;
+            $html .= '<li class="page-item"><a class="page-link" href="?' . http_build_query($params) . '">1</a></li>';
+            if ($start > 2) { $html .= '<li class="page-item disabled"><span class="page-link">…</span></li>'; }
+        }
+        for ($i = $start; $i <= $end; $i++) {
+            $params['p'] = $i;
+            $active = $i === $current ? ' active' : '';
+            $html .= '<li class="page-item' . $active . '"><a class="page-link" href="?' . http_build_query($params) . '">' . $i . '</a></li>';
+        }
+        if ($end < $total) {
+            if ($end < $total - 1) { $html .= '<li class="page-item disabled"><span class="page-link">…</span></li>'; }
+            $params['p'] = $total;
+            $html .= '<li class="page-item"><a class="page-link" href="?' . http_build_query($params) . '">' . $total . '</a></li>';
+        }
+
+        // Next
+        if ($current < $total) {
+            $params['p'] = $current + 1;
+            $html .= '<li class="page-item"><a class="page-link" href="?' . http_build_query($params) . '"><i class="bi bi-chevron-right"></i></a></li>';
+        } else {
+            $html .= '<li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>';
+        }
+
+        $html .= '</ul>';
+
+        if ($withJump) {
+            // Small page jump form
+            $html .= '<form class="ms-2 d-inline" method="GET" style="display:inline-flex; align-items:center; gap:.25rem;">';
+            foreach ($params as $k => $v) {
+                if ($k === 'p') continue; // will be replaced by input
+                $html .= '<input type="hidden" name="' . htmlspecialchars($k) . '" value="' . htmlspecialchars((string)$v) . '">';
+            }
+            $html .= '<input type="number" name="p" min="1" max="' . (int)$total . '" value="' . (int)$current . '" class="form-control form-control-sm" style="width:5rem">';
+            $html .= '<button type="submit" class="btn btn-sm btn-outline-secondary">Go</button>';
+            $html .= '</form>';
+        }
+
+        $html .= '</nav>';
+        return $html;
+    }
+}
+?>
+
 <div class="container-fluid py-4">
     <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
         renderBreadcrumb([
@@ -96,10 +168,6 @@ include __DIR__ . '/../../includes/header.php';
                 System Audit Log
             </h2>
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#filtersModal">
-                    <i class="bi bi-funnel me-1"></i>
-                    Filters
-                </button>
                 <button type="button" class="btn btn-outline-info btn-sm" data-bs-toggle="modal" data-bs-target="#statsModal">
                     <i class="bi bi-graph-up me-1"></i>
                     Statistics
@@ -153,10 +221,17 @@ include __DIR__ . '/../../includes/header.php';
                         <input type="hidden" name="<?php echo $key; ?>" value="<?php echo htmlspecialchars($value); ?>">
                     <?php endif; ?>
                 <?php endforeach; ?>
-                <div class="col-md-10">
+                <div class="col-md-6">
                     <input type="text" class="form-control" name="search" 
                            placeholder="Search by action, table, username, or email..." 
                            value="<?php echo htmlspecialchars($filters['search']); ?>">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-select" name="per_page">
+                        <?php foreach ([25,50,100,150,200] as $opt): ?>
+                            <option value="<?php echo $opt; ?>" <?php echo $perPage==$opt?'selected':''; ?>>Show <?php echo $opt; ?></option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100">
@@ -164,6 +239,15 @@ include __DIR__ . '/../../includes/header.php';
                         Search
                     </button>
                 </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#filtersModal">
+                        <i class="bi bi-funnel me-1"></i>
+                        Filters
+                    </button>
+                </div>
+                <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
+                <input type="hidden" name="dir" value="<?php echo htmlspecialchars($dir); ?>">
+                <input type="hidden" name="p" value="1">
             </form>
         </div>
     </div>
@@ -181,21 +265,61 @@ include __DIR__ . '/../../includes/header.php';
         </div>
         
         <?php if (!empty($auditEntries)): ?>
+            <!-- Top Pagination -->
+            <?php if ($totalPages > 1): ?>
+                <div class="card-subtitle px-3 pt-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-muted small">
+                            Showing <?php echo number_format($offset + 1); ?> to <?php echo number_format(min($offset + $limit, $totalCount)); ?> 
+                            of <?php echo number_format($totalCount); ?> entries
+                        </div>
+                        <?php echo render_audit_pagination($_GET, $pageNum, $totalPages); ?>
+                    </div>
+                </div>
+            <?php endif; ?>
             <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
-                            <th>Timestamp</th>
-                            <th>User</th>
-                            <th>Action</th>
-                            <th>Table</th>
-                            <th>Record ID</th>
-                            <th>IP Address</th>
+                            <?php 
+                            // Helper to build sort URLs with icon and neutral text style
+                            function audit_sort_link($label,$key,$curSort,$curDir){
+                                $params = array_merge($_GET, ['sort'=>$key, 'dir'=>($curSort===$key && $curDir==='asc')?'desc':'asc']);
+                                $url = '?' . http_build_query($params);
+                                $icon = '';
+                                if ($curSort === $key) {
+                                    $icon = $curDir==='asc' 
+                                        ? '<i class="bi bi-caret-up-fill ms-1"></i>' 
+                                        : '<i class="bi bi-caret-down-fill ms-1"></i>';
+                                }
+                                return '<a href="'.$url.'" class="text-body text-decoration-none">'.$label.$icon.'</a>';
+                            }
+                            ?>
+                            <th><?php echo audit_sort_link('Timestamp','created_at',$sort,$dir); ?></th>
+                            <th><?php echo audit_sort_link('User','user',$sort,$dir); ?></th>
+                            <th><?php echo audit_sort_link('Action','action',$sort,$dir); ?></th>
+                            <th><?php echo audit_sort_link('Table','table_name',$sort,$dir); ?></th>
+                            <th><?php echo audit_sort_link('Record ID','record_id',$sort,$dir); ?></th>
+                            <th><?php echo audit_sort_link('IP Address','ip_address',$sort,$dir); ?></th>
                             <th class="text-end">Details</th>
                         </tr>
                     </thead>
                     <tbody>
+                        <?php 
+                            // Prepare DB for optional lookups (e.g., record -> domain mapping)
+                            $auditDb = null;
+                            try { $auditDb = Database::getInstance(); } catch (Exception $e) { $auditDb = null; }
+                        ?>
                         <?php foreach ($auditEntries as $entry): ?>
+                            <?php 
+                              $displayRecordId = $entry['record_id'] ?? null;
+                              if (!$displayRecordId && !empty($entry['metadata'])) {
+                                  $meta = json_decode($entry['metadata'], true);
+                                  if (is_array($meta)) {
+                                      $displayRecordId = $meta['record_id'] ?? ($meta['domain_id'] ?? null);
+                                  }
+                              }
+                            ?>
                             <tr>
                                 <td>
                                     <small class="text-muted">
@@ -225,8 +349,44 @@ include __DIR__ . '/../../includes/header.php';
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <?php if ($entry['record_id']): ?>
-                                        <code class="small"><?php echo htmlspecialchars($entry['record_id']); ?></code>
+                                    <?php if (!empty($displayRecordId)): ?>
+                                        <?php 
+                                            $targetUrl = null;
+                                            $table = $entry['table_name'] ?? '';
+                                            $metaArr = [];
+                                            if (!empty($entry['metadata'])) {
+                                                $tmp = json_decode($entry['metadata'], true);
+                                                if (is_array($tmp)) { $metaArr = $tmp; }
+                                            }
+                                            if ($table === 'domains') {
+                                                $targetUrl = '?page=zone_edit&id=' . urlencode((string)$displayRecordId);
+                                            } elseif ($table === 'records' && !empty($entry['record_id'])) {
+                                                $domainId = $metaArr['domain_id'] ?? null;
+                                                if (!$domainId && $auditDb) {
+                                                    try {
+                                                        $row = $auditDb->fetch("SELECT domain_id FROM records WHERE id = ?", [$entry['record_id']]);
+                                                        $domainId = $row['domain_id'] ?? null;
+                                                    } catch (Exception $e) { /* ignore */ }
+                                                }
+                                                if ($domainId) {
+                                                    $targetUrl = '?page=records&domain_id=' . urlencode((string)$domainId) . '&action=edit&id=' . urlencode((string)$entry['record_id']);
+                                                } elseif (!empty($metaArr['domain_id'])) {
+                                                    $targetUrl = '?page=records&domain_id=' . urlencode((string)$metaArr['domain_id']);
+                                                }
+                                            } elseif ($table === 'cryptokeys' && !empty($metaArr['domain_id'])) {
+                                                $targetUrl = '?page=dnssec&domain_id=' . urlencode((string)$metaArr['domain_id']);
+                                            } elseif (!empty($metaArr['domain_id'])) {
+                                                // Generic fallback to the domain's records list if domain_id present
+                                                $targetUrl = '?page=records&domain_id=' . urlencode((string)$metaArr['domain_id']);
+                                            }
+                                        ?>
+                                        <?php if ($targetUrl): ?>
+                                            <a href="<?php echo $targetUrl; ?>" class="text-decoration-none">
+                                                <code class="small"><?php echo htmlspecialchars($displayRecordId); ?></code>
+                                            </a>
+                                        <?php else: ?>
+                                            <code class="small"><?php echo htmlspecialchars($displayRecordId); ?></code>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
@@ -256,7 +416,7 @@ include __DIR__ . '/../../includes/header.php';
                 </table>
             </div>
 
-            <!-- Pagination -->
+            <!-- Bottom Pagination -->
             <?php if ($totalPages > 1): ?>
                 <div class="card-footer">
                     <div class="d-flex justify-content-between align-items-center">
@@ -264,38 +424,7 @@ include __DIR__ . '/../../includes/header.php';
                             Showing <?php echo number_format($offset + 1); ?> to <?php echo number_format(min($offset + $limit, $totalCount)); ?> 
                             of <?php echo number_format($totalCount); ?> entries
                         </div>
-                        <nav>
-                            <ul class="pagination pagination-sm mb-0">
-                                <?php if ($page > 1): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="<?php echo '?' . http_build_query(array_merge($_GET, ['page' => $page - 1])); ?>">
-                                            <i class="bi bi-chevron-left"></i>
-                                        </a>
-                                    </li>
-                                <?php endif; ?>
-                                
-                                <?php
-                                $startPage = max(1, $page - 2);
-                                $endPage = min($totalPages, $page + 2);
-                                
-                                for ($i = $startPage; $i <= $endPage; $i++):
-                                ?>
-                                    <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
-                                        <a class="page-link" href="<?php echo '?' . http_build_query(array_merge($_GET, ['page' => $i])); ?>">
-                                            <?php echo $i; ?>
-                                        </a>
-                                    </li>
-                                <?php endfor; ?>
-                                
-                                <?php if ($page < $totalPages): ?>
-                                    <li class="page-item">
-                                        <a class="page-link" href="<?php echo '?' . http_build_query(array_merge($_GET, ['page' => $page + 1])); ?>">
-                                            <i class="bi bi-chevron-right"></i>
-                                        </a>
-                                    </li>
-                                <?php endif; ?>
-                            </ul>
-                        </nav>
+                        <?php echo render_audit_pagination($_GET, $pageNum, $totalPages); ?>
                     </div>
                 </div>
             <?php endif; ?>
@@ -334,6 +463,10 @@ include __DIR__ . '/../../includes/header.php';
             </div>
             <form method="GET">
                 <input type="hidden" name="page" value="admin_audit">
+                <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
+                <input type="hidden" name="dir" value="<?php echo htmlspecialchars($dir); ?>">
+                <input type="hidden" name="per_page" value="<?php echo htmlspecialchars((string)$perPage); ?>">
+                <input type="hidden" name="p" value="1">
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">

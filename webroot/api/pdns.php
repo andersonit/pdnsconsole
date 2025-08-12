@@ -6,7 +6,10 @@ require_once __DIR__ . '/../includes/bootstrap.php';
 // Explicitly include client (not autoloaded by composer)
 require_once __DIR__ . '/../classes/PdnsApiClient.php';
 
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('Cache-Control: no-store');
+if (function_exists('ob_get_level') && ob_get_level() === 0) { ob_start(); }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
@@ -92,21 +95,38 @@ try {
             ];
             break;
 
-        case 'enable_dnssec':
+        case 'enable_dnssec': {
             $zone = trim($_POST['zone'] ?? '');
             if (!$zone) { throw new Exception('Zone required'); }
-            $client->enableDnssec($zone);
-            $audit->logDNSSECEnabled($userId, null, ['zone' => $zone]);
+            // Try common variants in case trailing dot/case mismatches
+            $base = rtrim($zone, '.');
+            $candidates = array_unique([$base.'.', $base, strtolower($base).'.', strtolower($base)]);
+            $lastErr = null; $used = null;
+            foreach ($candidates as $cand) {
+                try { $client->enableDnssec($cand); $used = $cand; $lastErr = null; break; }
+                catch (Exception $eTry) { $lastErr = $eTry; }
+            }
+            if ($lastErr) { throw new Exception('Enable DNSSEC failed for all attempts ('.implode(', ', $candidates).'): '.$lastErr->getMessage()); }
+            $audit->logDNSSECEnabled($userId, null, ['zone' => $used ?: $zone]);
             $response['success'] = true;
-            break;
+            $response['zone'] = $used ?: $zone;
+            break; }
 
-        case 'disable_dnssec':
+        case 'disable_dnssec': {
             $zone = trim($_POST['zone'] ?? '');
             if (!$zone) { throw new Exception('Zone required'); }
-            $client->disableDnssec($zone);
-            $audit->logDNSSECDisabled($userId, null, ['zone' => $zone]);
+            $base = rtrim($zone, '.');
+            $candidates = array_unique([$base.'.', $base, strtolower($base).'.', strtolower($base)]);
+            $lastErr = null; $used = null;
+            foreach ($candidates as $cand) {
+                try { $client->disableDnssec($cand); $used = $cand; $lastErr = null; break; }
+                catch (Exception $eTry) { $lastErr = $eTry; }
+            }
+            if ($lastErr) { throw new Exception('Disable DNSSEC failed for all attempts ('.implode(', ', $candidates).'): '.$lastErr->getMessage()); }
+            $audit->logDNSSECDisabled($userId, null, ['zone' => $used ?: $zone]);
             $response['success'] = true;
-            break;
+            $response['zone'] = $used ?: $zone;
+            break; }
 
         case 'list_keys':
             $zone = trim($_POST['zone'] ?? '');
@@ -284,6 +304,35 @@ try {
             if ($error) { $response['warning'] = $error; }
             break;
 
+        case 'fix_txt_quotes': {
+            // Auto-quote TXT records for a given zone and rectify
+            $zone = trim($_POST['zone'] ?? '');
+            if (!$zone) { throw new Exception('Zone required'); }
+            $db = Database::getInstance();
+            // Find domain id from provided zone variants
+            $base = rtrim($zone, '.');
+            $row = $db->fetch("SELECT id FROM domains WHERE name = ? OR name = ?", [$base, $base.'.']);
+            if (!$row) { throw new Exception('Zone not found locally'); }
+            $domainId = (int)$row['id'];
+            $rows = $db->fetchAll("SELECT id, content FROM records WHERE domain_id = ? AND type = 'TXT'", [$domainId]);
+            $updated = 0;
+            foreach ($rows as $r) {
+                $content = trim((string)$r['content']);
+                if ($content === '') { continue; }
+                if ($content[0] !== '"' || substr($content, -1) !== '"') {
+                    // Escape unescaped quotes and wrap
+                    $escaped = preg_replace('/(?<!\\)"/', '\\"', $content);
+                    $newContent = '"' . $escaped . '"';
+                    $db->execute("UPDATE records SET content = ? WHERE id = ?", [$newContent, $r['id']]);
+                    $updated++;
+                }
+            }
+            try { $client->rectifyZone($base.'.'); } catch (Exception $eRect) { /* non-fatal */ }
+            $response['success'] = true;
+            $response['updated'] = $updated;
+            $response['message'] = 'Updated '.((int)$updated).' TXT records (if any) and rectified zone.';
+            break; }
+
         default:
             throw new Exception('Unknown action');
     }
@@ -292,4 +341,10 @@ try {
     $response['error'] = $e->getMessage();
 }
 
-echo json_encode($response);
+// Guarantee clean JSON output even if something echoed earlier
+$__json = json_encode($response);
+if (function_exists('ob_get_level') && ob_get_level() > 0) {
+    // Clear any buffered output (warnings/notices)
+    while (ob_get_level() > 0) { ob_end_clean(); }
+}
+echo $__json;

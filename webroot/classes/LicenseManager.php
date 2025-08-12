@@ -14,6 +14,7 @@ class LicenseManager {
     private static $cacheTime = 0;    // timestamp of cache
     private const CACHE_TTL = 1800;   // 30 min
     private static $integrityFailed = false; // public key integrity flag
+    private static $pubKeyMissing = false;   // external public key missing
 
     private static function seedQ(): int {
         static $limit = null;
@@ -34,54 +35,21 @@ class LicenseManager {
      * Obfuscation: original_line => base64_encode(line) => strrev(). Reversed back & decoded at runtime.
      * This deters trivial automated extraction but is NOT strong protection.
      */
-    private const PK_OBF = [
-        // '-----BEGIN PUBLIC KEY-----'
-        'LS0tLS0tRE5FVCBLWUVQVUJMSyBOSUdFQi0tLS0tLS0=',
-        // 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArExamplePublicKeyGoesHere0123456789AB'
-        'QkE5ODc2NTQzMjEwOTc2ZVJlaHNvZ0V5a1NlYmx1U2VwbGFNRHIwRUFBUUFCRzB3OUk5aWtIaXFrZ2JBTkRqSklCSU1JQQ==',
-        // 'MoreKeyDataLinesBase64EncodedEtcEtcExamplePadding=='
-        'PT09Z25pZGRhUGVsbXBhRXN0Y0N0RXRkZW5vQ2U0NVNhc2VuaWxEYVR5RWVyb01=',
-        // '-----END PUBLIC KEY-----'
-        'LS0tLS0tRE5FVCBLWUVQVUJMSyBHTkUtLS0tLS0t'
-    ];
-
-    // SHA256 hash of the de-obfuscated public key (joined with "\n").
-    private const PK_HASH = 'e3d0a4a2d8e2c2c9b4c0b1d4e5f6071829384756aabbccddeeff001122334455'; // placeholder hash
+    // Historical placeholder mechanism removed in favor of strict external key requirement.
 
     /**
      * Assemble public key.
      */
     private static function publicKey(): string {
-        $lines = [];
-        foreach (self::PK_OBF as $obf) {
-            $decoded = base64_decode(strrev($obf), true); // reverse then decode
-            if ($decoded === false) {
-                self::$integrityFailed = true;
-                continue;
-            }
-            $lines[] = $decoded;
-        }
-        $pub = implode("\n", $lines);
-
-        // If placeholder hash is present, attempt to auto-load external key (no end-user code edits required)
-        $placeholder = self::PK_HASH === 'e3d0a4a2d8e2c2c9b4c0b1d4e5f6071829384756aabbccddeeff001122334455';
-        if ($placeholder) {
-            $ext = self::loadExternalKey();
-            if ($ext) {
-                $pub = $ext; // replace with external key
-            }
-            // Skip integrity failure for placeholder scenario—treat as acceptable if external key loaded
-            if ($ext === null) {
-                // Minimal integrity marking to signal placeholder remains
-                self::$integrityFailed = false; // don't block; just informational
-            }
-            return $pub;
-        }
-
-        $hash = hash('sha256', $pub);
-        if (!hash_equals(self::PK_HASH, $hash)) {
+        // Strict: must load external key from config; no embedded placeholder accepted
+        $pub = self::loadExternalKey();
+        if (!$pub) {
+            self::$pubKeyMissing = true;
             self::$integrityFailed = true;
+            return '';
         }
+        self::$pubKeyMissing = false;
+        self::$integrityFailed = false;
         return $pub;
     }
 
@@ -94,12 +62,9 @@ class LicenseManager {
      * Returns full PEM string or null.
      */
     private static function loadExternalKey(): ?string {
-        $candidates = [];
-        $envPath = getenv('LICENSE_PUBKEY_PATH');
-        if ($envPath) { $candidates[] = $envPath; }
-        $baseDir = dirname(__DIR__, 2); // /webroot -> root project
-        $candidates[] = $baseDir . '/config/license_pubkey.pem';
-        $candidates[] = $baseDir . '/config/public_key.pem';
+        // Enforce config-based public key; require public_key.pem
+        $baseDir = dirname(__DIR__, 2); // /webroot -> project root
+        $candidates = [ $baseDir . '/config/public_key.pem' ];
         foreach ($candidates as $path) {
             if ($path && is_readable($path)) {
                 $pem = trim(file_get_contents($path));
@@ -112,9 +77,20 @@ class LicenseManager {
     }
 
     /**
+     * Clear internal cache (use after updating license key to re-evaluate immediately).
+     */
+    public static function clearCache(): void {
+        self::$cache = null;
+        self::$cacheTime = 0;
+        self::$integrityFailed = false;
+    }
+
+    /**
      * Get current license status (cached).
      */
     public static function getStatus(): array {
+    // Reset integrity state for each evaluation
+    self::$integrityFailed = false;
         if (self::$cache && (time() - self::$cacheTime) < self::CACHE_TTL) {
             return self::$cache;
         }
@@ -131,16 +107,17 @@ class LicenseManager {
 
         $parsed = self::verify($raw);
         if (!$parsed['valid']) {
-            // Fallback to free mode but carry reason
+            // Carry reason and mark invalid, but also provide free-mode limits for system behavior
             $status = self::baselineProfile();
+            $status['valid'] = false;
             $status['reason'] = $parsed['error'];
             $status['integrity'] = !self::$integrityFailed;
             return self::$cache = $status;
         }
         $parsed['integrity'] = !self::$integrityFailed;
         if (self::$integrityFailed) {
-            // downgrade silently to free if integrity fails (optional). For now just flag.
-            $parsed['integrity_error'] = 'PK_MISMATCH';
+            // Provide specific reason for integrity failure
+            $parsed['integrity_error'] = self::$pubKeyMissing ? 'PK_MISSING' : 'PK_MISMATCH';
         }
         self::$cache = $parsed;
         self::$cacheTime = time();
@@ -196,7 +173,7 @@ class LicenseManager {
             return ['valid' => false, 'error' => 'LX_B64'];
         }
         $payload = json_decode($json, true);
-        if (!is_array($payload) || !isset($payload['type'], $payload['domains'])) {
+    if (!is_array($payload) || !isset($payload['type'], $payload['domains'])) {
             return ['valid' => false, 'error' => 'LX_JSON'];
         }
         $sig = @hex2bin($sigHex);
@@ -210,6 +187,15 @@ class LicenseManager {
         $ok = openssl_verify($encoded, $sig, $pub, OPENSSL_ALGO_SHA256);
         if ($ok !== 1) {
             return ['valid' => false, 'error' => 'LX_SIG'];
+        }
+        // Enforce installation binding: payload.installation_id must match local installation code/ID
+    $db = Database::getInstance();
+    $localId = self::getOrCreateInstallationId($db);
+    // Compute local Installation Code to compare against payload value
+    $localCode = 'PDNS-' . strtoupper(substr(hash('sha256', 'PDNS-INSTALL-' . $localId), 0, 40));
+    $payloadInstall = $payload['installation_id'] ?? null;
+    if (empty($payloadInstall) || !hash_equals($localCode, $payloadInstall)) {
+            return ['valid' => false, 'error' => 'LX_BIND'];
         }
         $type = strtolower($payload['type']);
         $domains = (int)$payload['domains'];

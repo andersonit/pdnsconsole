@@ -20,11 +20,21 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
             } else {
                 if ($oldVal==='') $db->execute("INSERT INTO global_settings (setting_key,setting_value,description,category) VALUES ('license_key', ?, 'Installed license key','licensing')",[$newKey]);
                 else $db->execute("UPDATE global_settings SET setting_value=? WHERE setting_key='license_key'",[$newKey]);
-                if (class_exists('LicenseManager')) { LicenseManager::getStatus(); }
+                if (class_exists('LicenseManager')) { LicenseManager::clearCache(); }
                 if (isset($_SESSION['user_id'])) (new AuditLog())->logSettingUpdated($_SESSION['user_id'],'license_key',$oldVal,$newKey);
                 $st = LicenseManager::getStatus();
-                if (!$st['valid']) { $message='Key saved but invalid (code '.htmlspecialchars($st['reason'] ?? 'unknown').'). Free mode active.'; $messageType='warning'; }
-                else { $message='License validated: '.($st['license_type']==='commercial' ? ($st['unlimited']?'Commercial Unlimited':'Commercial limit '.$st['max_domains']) : 'Free'); $messageType='success'; }
+                if (!$st['valid']) {
+                    $reason = $st['reason'] ?? 'unknown';
+                    if ($reason === 'LX_BIND') {
+                        $message = 'License key does not match this Installation Code. Please request a new license using the Installation Code shown below.';
+                        $messageType = 'danger';
+                    } else {
+                        $message = 'Key saved but invalid (code ' . htmlspecialchars($reason) . '). Free mode active.';
+                        $messageType = 'warning';
+                    }
+                } else {
+                    $message='License validated: '.($st['license_type']==='commercial' ? ($st['unlimited']?'Commercial Unlimited':'Commercial limit '.$st['max_domains']) : 'Free'); $messageType='success';
+                }
             }
         }
     }

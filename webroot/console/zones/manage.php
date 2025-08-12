@@ -433,7 +433,7 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                     <?php if ($isSuperAdmin || count($userTenants) > 1): ?>
                                     <td>
                                         <?php if ($domainRow['tenant_name']): ?>
-                                            <span class="badge bg-light text-dark">
+                                            <span class="badge bg-dark text-light">
                                                 <?php echo htmlspecialchars($domainRow['tenant_name']); ?>
                                             </span>
                                         <?php else: ?>

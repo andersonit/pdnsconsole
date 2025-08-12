@@ -289,6 +289,11 @@ class Records {
             }
         }
         
+        // Normalize TXT content to include quotes required by PowerDNS
+        if (strtoupper($type) === 'TXT') {
+            $content = $this->normalizeTxtContent($content);
+        }
+
         // Insert record
         $this->db->execute(
             "INSERT INTO records (domain_id, name, type, content, ttl, prio, auth) 
@@ -375,6 +380,11 @@ class Records {
             }
         }
         
+        // Normalize TXT content to include quotes required by PowerDNS
+        if (strtoupper($type) === 'TXT') {
+            $content = $this->normalizeTxtContent($content);
+        }
+
         // Update record
         $this->db->execute(
             "UPDATE records SET name = ?, type = ?, content = ?, ttl = ?, prio = ? 
@@ -386,6 +396,22 @@ class Records {
         $this->updateDomainSerial($record['domain_id']);
         
         return true;
+    }
+
+    /**
+     * Ensure TXT record content is quoted per PowerDNS expectations.
+     * - If already quoted, return as-is.
+     * - Otherwise wrap entire content in double quotes.
+     */
+    private function normalizeTxtContent($content) {
+        $trimmed = trim((string)$content);
+        if ($trimmed === '') return '""';
+        if ($trimmed[0] === '"' && substr($trimmed, -1) === '"') {
+            return $trimmed;
+        }
+        // Escape unescaped quotes (quotes not preceded by a backslash) and wrap once
+        $escaped = preg_replace('/(?<!\\\\)"/', '\\"', $trimmed);
+        return '"' . $escaped . '"';
     }
     
     /**
@@ -479,7 +505,7 @@ class Records {
     /**
      * Update domain serial number in SOA record
      */
-    private function updateDomainSerial($domainId) {
+    public function updateDomainSerial($domainId) {
         // Get current SOA record
         $soa = $this->db->fetch(
             "SELECT id, content FROM records WHERE domain_id = ? AND type = 'SOA'",

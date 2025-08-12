@@ -256,7 +256,7 @@ class AuditLog {
     /**
      * Get audit log entries with filtering and pagination
      */
-    public function getAuditLog($filters = [], $limit = 50, $offset = 0) {
+    public function getAuditLog($filters = [], $limit = 50, $offset = 0, $sort = 'created_at', $dir = 'desc') {
         $sql = "SELECT al.*, au.username, au.email
                 FROM audit_log al
                 LEFT JOIN admin_users au ON al.user_id = au.id
@@ -304,7 +304,20 @@ class AuditLog {
             $params[] = $searchTerm;
         }
 
-        $sql .= " ORDER BY al.created_at DESC LIMIT ? OFFSET ?";
+        // Sorting
+        $allowedSort = [
+            'created_at' => 'al.created_at',
+            'action' => 'al.action',
+            'table_name' => 'al.table_name',
+            'record_id' => 'al.record_id',
+            'ip_address' => 'al.ip_address',
+            'user' => 'au.username'
+        ];
+        $sortKey = strtolower((string)$sort);
+        $orderBy = $allowedSort[$sortKey] ?? 'al.created_at';
+        $dir = strtolower($dir) === 'asc' ? 'ASC' : 'DESC';
+
+        $sql .= " ORDER BY $orderBy $dir LIMIT ? OFFSET ?";
         $params[] = $limit;
         $params[] = $offset;
 
@@ -504,8 +517,19 @@ class AuditLog {
             'COMMENT_UPDATE' => 'Comment Updated',
             'COMMENT_DELETE' => 'Comment Deleted',
             'MAINTENANCE_TOGGLE' => 'Maintenance Mode Toggled',
-            'CAPTCHA_FAILED' => 'CAPTCHA Failed'
+            'CAPTCHA_FAILED' => 'CAPTCHA Failed',
+            // DDNS
+            'DDNS_UPDATE' => 'Dynamic DNS Updated',
+            'DDNS_AUTH_FAILED' => 'Dynamic DNS Auth Failed',
+            'DDNS_RATE_LIMIT_HIT' => 'Dynamic DNS Rate Limited',
+            'DDNS_RATE_LIMIT_EXCEEDED' => 'Dynamic DNS Throttled'
         ];
+
+    // Token management (DDNS)
+    $actionMap['DDNS_TOKEN_CREATE'] = 'DDNS Token Created';
+    $actionMap['DDNS_TOKEN_DELETE'] = 'DDNS Token Deleted';
+    $actionMap['DDNS_TOKEN_ENABLE'] = 'DDNS Token Enabled';
+    $actionMap['DDNS_TOKEN_DISABLE'] = 'DDNS Token Disabled';
 
         return $actionMap[$action] ?? $action;
     }

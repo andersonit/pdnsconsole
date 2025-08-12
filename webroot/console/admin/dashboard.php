@@ -279,7 +279,59 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                             <td><?php if ($entry['username']): ?><div class="fw-semibold small"><?php echo htmlspecialchars($entry['username']); ?></div><?php if (!empty($entry['email'])): ?><small class="text-muted"><?php echo htmlspecialchars($entry['email']); ?></small><?php endif; ?><?php else: ?><span class="text-muted small">System</span><?php endif; ?></td>
                                             <td><span class="badge <?php echo $auditLog->getActionBadgeClass($entry['action']); ?>"><?php echo htmlspecialchars($auditLog->formatAction($entry['action'])); ?></span></td>
                                             <td><?php if ($entry['table_name']): ?><code class="small"><?php echo htmlspecialchars($entry['table_name']); ?></code><?php else: ?><span class="text-muted small">-</span><?php endif; ?></td>
-                                            <td><?php if ($entry['record_id']): ?><code class="small"><?php echo htmlspecialchars($entry['record_id']); ?></code><?php else: ?><span class="text-muted small">-</span><?php endif; ?></td>
+                                            <?php 
+                                                $dashDisplayRecordId = $entry['record_id'] ?? null;
+                                                $dashMeta = [];
+                                                if (!$dashDisplayRecordId && !empty($entry['metadata'])) {
+                                                    $meta = json_decode($entry['metadata'], true);
+                                                    if (is_array($meta)) {
+                                                        $dashMeta = $meta;
+                                                        $dashDisplayRecordId = $meta['record_id'] ?? ($meta['domain_id'] ?? null);
+                                                    }
+                                                } else if (!empty($entry['metadata'])) {
+                                                    $tmp = json_decode($entry['metadata'], true);
+                                                    if (is_array($tmp)) { $dashMeta = $tmp; }
+                                                }
+
+                                                // Build target URL similar to audit table
+                                                $dashTargetUrl = null;
+                                                $dashTable = $entry['table_name'] ?? '';
+                                                if (!empty($dashDisplayRecordId)) {
+                                                    if ($dashTable === 'domains') {
+                                                        $dashTargetUrl = '?page=zone_edit&id=' . urlencode((string)$dashDisplayRecordId);
+                                                    } elseif ($dashTable === 'records' && !empty($entry['record_id'])) {
+                                                        $dashDomainId = $dashMeta['domain_id'] ?? null;
+                                                        if (!$dashDomainId && isset($db)) {
+                                                            try {
+                                                                $row = $db->fetch("SELECT domain_id FROM records WHERE id = ?", [$entry['record_id']]);
+                                                                $dashDomainId = $row['domain_id'] ?? null;
+                                                            } catch (Exception $e) { /* ignore */ }
+                                                        }
+                                                        if ($dashDomainId) {
+                                                            $dashTargetUrl = '?page=records&domain_id=' . urlencode((string)$dashDomainId) . '&action=edit&id=' . urlencode((string)$entry['record_id']);
+                                                        } elseif (!empty($dashMeta['domain_id'])) {
+                                                            $dashTargetUrl = '?page=records&domain_id=' . urlencode((string)$dashMeta['domain_id']);
+                                                        }
+                                                    } elseif ($dashTable === 'cryptokeys' && !empty($dashMeta['domain_id'])) {
+                                                        $dashTargetUrl = '?page=dnssec&domain_id=' . urlencode((string)$dashMeta['domain_id']);
+                                                    } elseif (!empty($dashMeta['domain_id'])) {
+                                                        $dashTargetUrl = '?page=records&domain_id=' . urlencode((string)$dashMeta['domain_id']);
+                                                    }
+                                                }
+                                            ?>
+                                            <td>
+                                                <?php if (!empty($dashDisplayRecordId)): ?>
+                                                    <?php if ($dashTargetUrl): ?>
+                                                        <a href="<?php echo $dashTargetUrl; ?>" class="text-decoration-none">
+                                                            <code class="small"><?php echo htmlspecialchars($dashDisplayRecordId); ?></code>
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <code class="small"><?php echo htmlspecialchars($dashDisplayRecordId); ?></code>
+                                                    <?php endif; ?>
+                                                <?php else: ?>
+                                                    <span class="text-muted small">-</span>
+                                                <?php endif; ?>
+                                            </td>
                                             <td><small class="text-muted"><?php echo htmlspecialchars($entry['ip_address']); ?></small></td>
                                             <td class="text-end"><?php if ($entry['old_values'] || $entry['new_values'] || $entry['metadata']): ?><button type="button" class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#dashboardDetailsModal" data-action="<?php echo htmlspecialchars($entry['action'], ENT_QUOTES); ?>" data-old-values="<?php echo htmlspecialchars($entry['old_values'] ?? '', ENT_QUOTES); ?>" data-new-values="<?php echo htmlspecialchars($entry['new_values'] ?? '', ENT_QUOTES); ?>" data-metadata="<?php echo htmlspecialchars($entry['metadata'] ?? '', ENT_QUOTES); ?>"><i class="bi bi-eye"></i></button><?php else: ?><span class="text-muted">-</span><?php endif; ?></td>
                                         </tr><?php endforeach; ?></tbody>

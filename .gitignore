@@ -41,3 +41,8 @@ Thumbs.db
 
 # Composer dependencies
 /vendor/
+
+#license config
+/license_admin/config.php
+/license_admin/private.pem
+

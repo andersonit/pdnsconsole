@@ -68,6 +68,5 @@ CREATE TABLE IF NOT EXISTS license_events (
 -- Seed example plans
 INSERT INTO plans (code,name,domain_limit,price_cents,currency,interval_unit) VALUES
  ('FREE','Free Tier',5,0,'USD','once'),
- ('PRO100','Professional 100 Domains',100,9900,'USD','year'),
  ('BUSUNL','Business Unlimited',0,19900,'USD','year')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
