@@ -998,7 +998,6 @@ DNSSEC core implementation delivered; remaining items narrowed to testing, expor
 - [x] Automated cron rollover script (initiate + completion phases) with per-domain metadata tracking
 - [x] Deactivation-first policy (old keys deactivated, then deleted after grace period) replacing immediate deletion
 - [x] Deactivation & cleanup metadata (PDNSCONSOLE-OLDKEY-<id>-DEACTIVATED) + configurable deletion grace (DELETION_GRACE_DAYS env)
-- [ ] Per-domain hold override (deferred; currently using global `dnssec_hold_period_days` only)
 - [x] Safety modals: Deactivate (warn if last active key) & Delete (high-risk guidance, recommended workflow)
 - [x] Audit logging: key generation, rollover start/complete, deactivation/delete (base events; finer-grain pending)
 - [x] Rectify zone button (API call wrapper)
@@ -1040,7 +1039,6 @@ Future DNSSEC Enhancements (Planned / Deferred):
 - [x] License management interface (dedicated `admin_license` page + dashboard card + dropdown link)
 - [x] Domain creation blocking & near-limit warnings (add & bulk add pages)
 - [x] Upgrade / purchase prompts (license page + dashboard upgrade button)
-- [ ] License recovery / transfer workflow UI (current: manual reissue – document in support guide)
 
 Licensing Implementation Notes:
 - Public schema minimized (only uses `global_settings` rows `license_key`, `installation_id`, and optional enforcement toggle).
@@ -1054,9 +1052,9 @@ Focused hardening, UX, and security add-ons requested after core feature set.
 - [x] Record Comments UI (CRUD) leveraging existing PowerDNS `comments` table (list, add, edit, delete, link to records)
 - [x] Cloudflare Turnstile integration: system settings keys + login form widget (graceful fallback if unset)
 - [x] Google reCAPTCHA integration (v2/v3 configurable) via system settings + login form conditional rendering
-- [ ] Maintenance Mode switch (blocks non-super-admin logins; customizable message; bypass via emergency token)
+- [x] Maintenance Mode switch (blocks non-super-admin logins; customizable message; bypass via emergency token)
 - [x] Unified Human Verification Abstraction (select None / Turnstile / reCAPTCHA in settings)
-- [ ] Audit logging for maintenance mode toggles & CAPTCHA challenge failures
+- [x] Audit logging for maintenance mode toggles & CAPTCHA challenge failures
 
 Notes:
 - Only one human verification provider active at a time; implement strategy pattern for adapters.

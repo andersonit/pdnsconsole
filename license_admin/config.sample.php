@@ -1,4 +1,5 @@
 <?php
+
 // Copy to config.php and adjust credentials. Do NOT commit real secrets.
 return [
     'db' => [
