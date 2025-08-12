@@ -25,11 +25,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errorMessage = 'Security token mismatch. Please try again.';
     } else {
     if (isset($_POST['action']) && $_POST['action'] === 'update_branding') {
-        $data = [
+        // Only site_name, footer_text, and optional site_logo/site_favicon are managed here.
+        $brandingData = [
             'site_name' => trim($_POST['site_name'] ?? ''),
-            'footer_text' => trim($_POST['footer_text'] ?? ''),
-            'theme_name' => $_POST['theme_name'] ?? 'light'
-        ];        // Handle logo upload
+            'footer_text' => trim($_POST['footer_text'] ?? '')
+        ];
+        // Handle logo upload
         if (isset($_FILES['site_logo']) && $_FILES['site_logo']['error'] === UPLOAD_ERR_OK) {
             $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/assets/img/uploads/';
             
@@ -69,8 +70,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
-        } else if (!empty($_POST['current_logo'])) {
+    } else if (!empty($_POST['current_logo'])) {
             $brandingData['site_logo'] = $_POST['current_logo'];
+        }
+        
+        // Handle favicon upload
+        if (empty($errorMessage) && isset($_FILES['site_favicon']) && $_FILES['site_favicon']['error'] !== UPLOAD_ERR_NO_FILE) {
+            if ($_FILES['site_favicon']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = $_SERVER['DOCUMENT_ROOT'] . '/assets/img/uploads/';
+                if (!is_dir($uploadDir)) {
+                    if (!mkdir($uploadDir, 0755, true)) {
+                        $errorMessage = 'Failed to create upload directory for favicon. Please check file permissions.';
+                    }
+                }
+                if (empty($errorMessage) && !is_writable($uploadDir)) {
+                    $errorMessage = 'Upload directory is not writable for favicon. Please check file permissions.';
+                }
+                if (empty($errorMessage)) {
+                    // Validate favicon types (ICO/PNG/SVG)
+                    $allowedFaviconTypes = ['image/x-icon', 'image/vnd.microsoft.icon', 'image/png', 'image/svg+xml'];
+                    $fileType = $_FILES['site_favicon']['type'];
+                    if (!in_array($fileType, $allowedFaviconTypes)) {
+                        $errorMessage = 'Invalid favicon type. Please upload a .ico, .png, or .svg file.';
+                    } else {
+                        // 1MB max for favicon
+                        $maxSize = 1 * 1024 * 1024;
+                        if ($_FILES['site_favicon']['size'] > $maxSize) {
+                            $errorMessage = 'Favicon file too large. Maximum size is 1MB.';
+                        } else {
+                            $fileName = 'favicon_' . time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', basename($_FILES['site_favicon']['name']));
+                            $uploadPath = $uploadDir . $fileName;
+                            if (move_uploaded_file($_FILES['site_favicon']['tmp_name'], $uploadPath)) {
+                                $brandingData['site_favicon'] = '/assets/img/uploads/' . $fileName;
+                            } else {
+                                $errorMessage = 'Failed to upload favicon file. Please check file permissions.';
+                            }
+                        }
+                    }
+                }
+            } else {
+                $errorMessage = 'Error uploading favicon. Please try again.';
+            }
+        } else if (!empty($_POST['current_favicon'])) {
+            // Keep existing favicon if not uploading a new one
+            $brandingData['site_favicon'] = $_POST['current_favicon'];
         }
         
         if (empty($errorMessage)) {
@@ -99,31 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get available themes
-$availableThemes = [
-    'default' => 'Default Bootstrap',
-    'cerulean' => 'Cerulean',
-    'cosmo' => 'Cosmo',
-    'cyborg' => 'Cyborg (Dark)',
-    'darkly' => 'Darkly (Dark)',
-    'flatly' => 'Flatly',
-    'journal' => 'Journal',
-    'litera' => 'Litera',
-    'lumen' => 'Lumen',
-    'lux' => 'Lux',
-    'materia' => 'Materia',
-    'minty' => 'Minty',
-    'pulse' => 'Pulse',
-    'sandstone' => 'Sandstone',
-    'simplex' => 'Simplex',
-    'sketchy' => 'Sketchy',
-    'slate' => 'Slate (Dark)',
-    'solar' => 'Solar (Dark)',
-    'spacelab' => 'Spacelab',
-    'superhero' => 'Superhero (Dark)',
-    'united' => 'United',
-    'yeti' => 'Yeti'
-];
+// Theme is managed globally via the Theme menu/modal; no per-page selection here.
 
 include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
@@ -177,6 +196,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <input type="hidden" name="action" value="update_branding">
                         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="current_logo" value="<?php echo htmlspecialchars($branding['site_logo']); ?>">
+                        <input type="hidden" name="current_favicon" value="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
                         
                         <!-- Site Information -->
                         <div class="row mb-4">
@@ -225,12 +245,41 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </div>
                         </div>
 
-                        <!-- Footer and Theme -->
+                        <!-- Favicon Section -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <h6 class="text-primary mb-3">
+                                    <i class="bi bi-star me-1"></i>
+                                    Favicon
+                                </h6>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="site_favicon" class="form-label">Site Favicon</label>
+                                <input type="file" class="form-control" id="site_favicon" name="site_favicon"
+                                       accept="image/x-icon,image/vnd.microsoft.icon,image/png,image/svg+xml">
+                                <div class="form-text">Upload .ico, .png, or .svg (prefer 32x32 or 180x180 PNG)</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Current Favicon</label>
+                                <div class="border rounded p-3 bg-light d-flex align-items-center" style="height: 84px;">
+                                    <?php if (!empty($branding['site_favicon']) && file_exists($_SERVER['DOCUMENT_ROOT'] . $branding['site_favicon'])): ?>
+                                        <img src="<?php echo htmlspecialchars($branding['site_favicon']); ?>" alt="Current Favicon" style="width: 32px; height: 32px;">
+                                        <a href="<?php echo htmlspecialchars($branding['site_favicon']); ?>" class="ms-3 small" target="_blank" rel="noopener">View</a>
+                                    <?php else: ?>
+                                        <span class="text-muted">No favicon currently set</span>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+
+            <!-- Footer -->
                         <div class="row mb-4">
                             <div class="col-12">
                                 <h6 class="text-primary mb-3">
                                     <i class="bi bi-palette2 me-1"></i>
-                                    Appearance & Footer
+                    Footer
                                 </h6>
                             </div>
                             
@@ -241,19 +290,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                        placeholder="Powered by PDNS Console">
                                 <div class="form-text">Text displayed in the page footer</div>
                             </div>
-                            
-                            <div class="col-md-6 mb-3">
-                                <label for="theme_name" class="form-label">Theme</label>
-                                <select class="form-select" id="theme_name" name="theme_name">
-                                    <?php foreach ($availableThemes as $value => $name): ?>
-                                        <option value="<?php echo htmlspecialchars($value); ?>" 
-                                                <?php echo $branding['theme_name'] === $value ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($name); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <div class="form-text">Bootstrap theme for the interface</div>
-                            </div>
+                <!-- Theme selection removed from Branding page; use Theme menu (Super Admins). -->
                         </div>
 
                         <!-- Submit Button -->
@@ -289,7 +326,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <h6>Current Settings</h6>
                         <ul class="list-unstyled small">
                             <li><strong>Site Name:</strong> <?php echo htmlspecialchars($branding['site_name']); ?></li>
-                            <li><strong>Theme:</strong> <?php echo htmlspecialchars($availableThemes[$branding['theme_name']] ?? $branding['theme_name']); ?></li>
+                            <!-- Theme preview removed; theme managed via menu -->
                             <li><strong>Footer:</strong> <?php echo htmlspecialchars($branding['footer_text']); ?></li>
                         </ul>
                     </div>
@@ -317,12 +354,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <li>Use transparent backgrounds for best results</li>
                     </ul>
                     
-                    <h6 class="mt-3">Theme Notes</h6>
-                    <ul class="small">
-                        <li>Dark themes work well for extended use</li>
-                        <li>Light themes provide better readability</li>
-                        <li>Changes apply to all users</li>
-                    </ul>
+                    <!-- Theme notes removed; theme managed globally via menu -->
                 </div>
             </div>
         </div>

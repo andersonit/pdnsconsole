@@ -127,6 +127,7 @@ class Settings {
         return [
             'site_name' => $this->get('site_name', 'PDNS Console'),
             'site_logo' => $this->get('site_logo', ''),
+            'site_favicon' => $this->get('site_favicon', ''),
             'footer_text' => $this->get('footer_text', '© 2025 PDNS Console. All rights reserved.'),
             'theme_name' => $this->get('theme_name', 'light')
         ];
@@ -136,7 +137,7 @@ class Settings {
      * Update branding settings
      */
     public function updateBranding($settings) {
-        $allowed = ['site_name', 'site_logo', 'footer_text', 'theme_name'];
+        $allowed = ['site_name', 'site_logo', 'site_favicon', 'footer_text', 'theme_name'];
         $updated = 0;
         
         foreach ($allowed as $key) {
@@ -148,6 +149,9 @@ class Settings {
                         break;
                     case 'site_logo':
                         $description = 'Path to site logo image';
+                        break;
+                    case 'site_favicon':
+                        $description = 'Path to site favicon';
                         break;
                     case 'footer_text':
                         $description = 'Footer text displayed on all pages';

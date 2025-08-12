@@ -39,7 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'records_per_page' => intval($_POST['records_per_page'] ?? 25),
                 'timezone' => trim($_POST['timezone'] ?? 'UTC'),
                 'max_upload_size' => intval($_POST['max_upload_size'] ?? 5242880),
-                'dnssec_hold_period_days' => intval($_POST['dnssec_hold_period_days'] ?? 7),
                 'allowed_logo_types' => trim($_POST['allowed_logo_types'] ?? 'image/jpeg,image/png,image/gif'),
                 'maintenance_mode' => isset($_POST['maintenance_mode']) ? '1' : '0'
             ];
@@ -107,10 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Invalid PowerDNS Server ID.');
             }
 
-            // Validate DNSSEC hold period (1-60 days reasonable)
-            if ($systemSettings['dnssec_hold_period_days'] < 1 || $systemSettings['dnssec_hold_period_days'] > 60) {
-                throw new Exception('DNSSEC hold period must be between 1 and 60 days.');
-            }
+            // DNSSEC hold period moved to DNS Settings page
 
             // Update all system settings (upsert to ensure new keys persist)
             $descriptions = [
@@ -121,7 +117,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'timezone' => 'System timezone',
                 'max_upload_size' => 'Maximum upload size (bytes)',
                 'allowed_logo_types' => 'Allowed MIME types for logo uploads',
-                'dnssec_hold_period_days' => 'DNSSEC rollover hold period in days',
                 'maintenance_mode' => 'Enable maintenance mode (1=yes, 0=no)'
             ];
             foreach ($systemSettings as $key => $value) {
@@ -230,7 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get current system settings
 $systemSettings = [];
-$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types', 'dnssec_hold_period_days', 'maintenance_mode', 'pdns_api_host', 'pdns_api_port', 'pdns_api_server_id', 'pdns_api_key_enc'];
+$systemKeys = ['session_timeout', 'max_login_attempts', 'default_tenant_domains', 'records_per_page', 'timezone', 'max_upload_size', 'allowed_logo_types', 'maintenance_mode', 'pdns_api_host', 'pdns_api_port', 'pdns_api_server_id', 'pdns_api_key_enc'];
 
 foreach ($systemKeys as $key) {
     $setting = $db->fetch(
@@ -413,11 +408,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <input type="hidden" id="allowed_logo_types" name="allowed_logo_types" value="<?php echo htmlspecialchars($systemSettings['allowed_logo_types']); ?>">
                             <small class="text-muted">Select which file types are allowed for logo uploads</small>
                         </div>
-                        <div class="mb-3">
-                            <label for="dnssec_hold_period_days" class="form-label">DNSSEC Timed Rollover Hold (days)</label>
-                            <input type="number" class="form-control" id="dnssec_hold_period_days" name="dnssec_hold_period_days" value="<?php echo htmlspecialchars($systemSettings['dnssec_hold_period_days'] ?: '7'); ?>" min="1" max="60">
-                            <small class="text-muted">Days to keep both old and new keys active during a timed rollover before retiring the old key. Align with parent DS TTL.</small>
-                        </div>
+                        <!-- DNSSEC hold period moved to DNS Settings page -->
                         <hr>
                         <h6 class="fw-semibold mb-3"><i class="bi bi-key me-1"></i>Login CAPTCHA / Human Verification</h6>
                         <div class="mb-3">

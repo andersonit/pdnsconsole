@@ -65,11 +65,27 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             color: #6c757d
         }
 
+        /* Remove link underlines on admin tiles in all states */
+        a.dash-tile,
+        a.dash-tile:hover,
+        a.dash-tile:focus,
+        a.dash-tile:active,
+        a.dash-tile:visited {
+            text-decoration: none !important;
+        }
+        .dash-tile .title,
+        .dash-tile small {
+            text-decoration: none !important;
+        }
+
         .dash-tile:hover {
             transform: translateY(-2px);
             text-decoration: none;
             box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05)
         }
+
+        /* Make hero tile support stretched-link */
+        .hero-tile { position: relative; }
     </style>
 
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-4">
@@ -84,7 +100,19 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             </div>
         </div>
     </div>
-
+    <section class="dns-hero mb-4">
+        <div class="hero-inner d-flex justify-content-center">
+            <div class="dash-tile dash-hero hero-tile shadow-sm">
+                <a href="?page=zone_manage" class="stretched-link" aria-label="Go to DNS Management"></a>
+                <div class="icon-wrap bg-primary bg-opacity-10"><i class="bi bi-diagram-3 text-primary fs-4"></i></div>
+                <div class="title fs-5 mb-1">Manage DNS</div>
+                <small class="mb-2">Zones, Records, DNSSEC, and Dynamic DNS</small>
+                <button type="button" class="btn btn-primary mt-2" onclick="window.location.href='/console/zones/manage.php'">
+                    <i class="bi bi-globe me-1"></i>Go to DNS Management
+                </button>
+            </div>
+        </div>
+    </section>
     <div class="row mb-4">
         <div class="col-xl-2 col-md-6 mb-3">
             <div class="card border-0 shadow-sm h-100">
@@ -172,17 +200,6 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
             </div>
         </div>
     </div>
-
-    <section class="dns-hero mb-4">
-        <div class="hero-inner d-flex justify-content-center">
-            <div class="dash-tile dash-hero hero-tile shadow-sm">
-                <div class="icon-wrap bg-primary bg-opacity-10"><i class="bi bi-diagram-3 text-primary fs-4"></i></div>
-                <div class="title fs-5 mb-1">Manage DNS</div>
-                <small class="mb-2">Zones, records, DNSSEC, and Dynamic DNS</small>
-                <a href="?page=zone_manage" class="btn btn-primary mt-2"><i class="bi bi-globe me-1"></i>Go to DNS Management</a>
-            </div>
-        </div>
-    </section>
 
     <div class="row">
         <div class="col-12 mb-4">

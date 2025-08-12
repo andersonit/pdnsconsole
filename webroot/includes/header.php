@@ -22,6 +22,10 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo htmlspecialchars($pageTitle . ' - ' . $branding['site_name']); ?></title>
+    <?php if (!empty($branding['site_favicon'])): ?>
+    <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
+    <link rel="shortcut icon" href="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
+    <?php endif; ?>
     <?php 
     // Inject DNSSEC hold period meta if available
     try { $dnssecHold = $settings->get('dnssec_hold_period_days'); if ($dnssecHold) { echo '<meta name="dnssec-hold-days" content="'.htmlspecialchars($dnssecHold).'">'; } } catch (Exception $e) { /* ignore */ }
@@ -316,9 +320,11 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
                     <li><a class="dropdown-item" href="?page=profile">
                         <i class="bi bi-person-gear me-2"></i>Profile Settings
                     </a></li>
+                    <?php if ($user->isSuperAdmin($currentUser['id'])): ?>
                     <li><a class="dropdown-item" href="#" onclick="toggleTheme()">
                         <i class="bi bi-palette me-2"></i>Theme Selection
                     </a></li>
+                    <?php endif; ?>
                     <?php if ($user->isSuperAdmin($currentUser['id'])): ?>
                     <li><hr class="dropdown-divider"></li>
                     <li><h6 class="dropdown-header text-danger">

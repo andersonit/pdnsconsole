@@ -32,7 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'soa_refresh' => intval($_POST['soa_refresh'] ?? 10800),
                     'soa_retry' => intval($_POST['soa_retry'] ?? 3600),
                     'soa_expire' => intval($_POST['soa_expire'] ?? 604800),
-                    'soa_minimum' => intval($_POST['soa_minimum'] ?? 86400)
+                    'soa_minimum' => intval($_POST['soa_minimum'] ?? 86400),
+                    'dnssec_hold_period_days' => intval($_POST['dnssec_hold_period_days'] ?? 7)
                 ];
 
                 // Nameservers
@@ -68,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($dnsSettings['soa_retry'] < 60) throw new Exception('SOA retry must be at least 60 seconds.');
                 if ($dnsSettings['soa_expire'] < 3600) throw new Exception('SOA expire must be at least 3600 seconds (1 hour).');
                 if ($dnsSettings['soa_minimum'] < 60) throw new Exception('SOA minimum must be at least 60 seconds.');
+                if ($dnsSettings['dnssec_hold_period_days'] < 1 || $dnsSettings['dnssec_hold_period_days'] > 60) throw new Exception('DNSSEC hold period must be between 1 and 60 days.');
 
                 foreach ($dnsSettings as $key => $value) {
                     $db->execute("UPDATE global_settings SET setting_value = ? WHERE setting_key = ?", [$value, $key]);
@@ -84,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Current DNS settings
 $dnsSettings = [];
-$dnsKeys = ['soa_contact', 'default_ttl', 'soa_refresh', 'soa_retry', 'soa_expire', 'soa_minimum'];
+$dnsKeys = ['soa_contact', 'default_ttl', 'soa_refresh', 'soa_retry', 'soa_expire', 'soa_minimum', 'dnssec_hold_period_days'];
 foreach ($dnsKeys as $key) {
     $row = $db->fetch("SELECT setting_value FROM global_settings WHERE setting_key = ?", [$key]);
     $dnsSettings[$key] = $row['setting_value'] ?? '';
@@ -114,8 +116,8 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         <div class="col-lg-7 mb-4">
             <div class="card border-0 shadow-sm">
                 <div class="card-header bg-transparent border-0">
-                    <h6 class="card-title mb-0">DNS Configuration</h6>
-                    <small class="text-muted">Nameservers & SOA defaults</small>
+                    <h5 class="card-title mb-0">DNS Configuration</h5>
+                    <small class="text-muted">Nameservers, SOA defaults, DNSSEC Rollover</small>
                 </div>
                 <div class="card-body">
                     <form method="POST">
@@ -145,15 +147,17 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <button type="button" class="btn btn-outline-primary btn-sm" id="add-nameserver-btn"><i class="bi bi-plus-circle me-1"></i>Add Nameserver</button>
                             <small class="text-muted d-block mt-1">Up to 8 additional nameservers</small>
                         </div>
+                        <hr class="text-primary">
                         <div class="mb-3">
                             <label class="form-label" for="soa_contact">SOA Contact Email *</label>
                             <input type="text" class="form-control" id="soa_contact" name="soa_contact" value="<?php echo htmlspecialchars($dnsSettings['soa_contact']); ?>" required>
                             <small class="text-muted">Use admin@example.com (converted to admin.example.com)</small>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label" for="default_ttl">Default TTL (seconds)</label>
+                            <label class="form-label" for="default_ttl">Default TTL for DNS Records (seconds)</label>
                             <input type="number" class="form-control" id="default_ttl" name="default_ttl" value="<?php echo htmlspecialchars($dnsSettings['default_ttl']); ?>" min="60" required>
                         </div>
+                        <hr class="text-primary">
                         <h6 class="mt-4 mb-3">SOA Timers</h6>
                         <div class="row">
                             <div class="col-md-6 mb-3">
@@ -175,6 +179,12 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <input type="number" class="form-control" id="soa_minimum" name="soa_minimum" value="<?php echo htmlspecialchars($dnsSettings['soa_minimum']); ?>" min="60" required>
                             </div>
                         </div>
+                        <hr class="text-primary">
+                        <div class="mb-3">
+                            <label for="dnssec_hold_period_days" class="form-label">DNSSEC Timed Rollover Hold (days)</label>
+                            <input type="number" class="form-control" id="dnssec_hold_period_days" name="dnssec_hold_period_days" value="<?php echo htmlspecialchars($dnsSettings['dnssec_hold_period_days'] ?: '7'); ?>" min="1" max="60">
+                            <small class="text-muted">Days to keep both old and new keys active during a timed rollover before retiring the old key. Align with parent DS TTL.</small>
+                        </div>
                         <div class="d-grid">
                             <button class="btn btn-primary" type="submit"><i class="bi bi-check2-circle me-1"></i>Update DNS Settings</button>
                         </div>
@@ -195,6 +205,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <dt class="col-sm-5">SOA Retry:</dt><dd class="col-sm-7"><?php echo number_format($dnsSettings['soa_retry']); ?> s</dd>
                         <dt class="col-sm-5">SOA Expire:</dt><dd class="col-sm-7"><?php echo number_format($dnsSettings['soa_expire']); ?> s</dd>
                         <dt class="col-sm-5">SOA Minimum:</dt><dd class="col-sm-7"><?php echo number_format($dnsSettings['soa_minimum']); ?> s</dd>
+                        <dt class="col-sm-5">DNSSEC Hold:</dt><dd class="col-sm-7"><?php echo (int)($dnsSettings['dnssec_hold_period_days'] ?: 7); ?> days</dd>
                     </dl>
                     <div class="alert alert-info alert-static mt-3 mb-0 small"><i class="bi bi-info-circle me-1"></i>Applied to newly created zones only.</div>
                 </div>
