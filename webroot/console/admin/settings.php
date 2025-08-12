@@ -112,13 +112,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('DNSSEC hold period must be between 1 and 60 days.');
             }
 
-            // Update all system settings
+            // Update all system settings (upsert to ensure new keys persist)
+            $descriptions = [
+                'session_timeout' => 'Session timeout in seconds',
+                'max_login_attempts' => 'Maximum failed login attempts before lockout',
+                'default_tenant_domains' => 'Default maximum domains per tenant',
+                'records_per_page' => 'Default records per page',
+                'timezone' => 'System timezone',
+                'max_upload_size' => 'Maximum upload size (bytes)',
+                'allowed_logo_types' => 'Allowed MIME types for logo uploads',
+                'dnssec_hold_period_days' => 'DNSSEC rollover hold period in days',
+                'maintenance_mode' => 'Enable maintenance mode (1=yes, 0=no)'
+            ];
             foreach ($systemSettings as $key => $value) {
+                $desc = $descriptions[$key] ?? 'System setting';
                 $db->execute(
-                    "UPDATE global_settings SET setting_value = ? WHERE setting_key = ?",
-                    [$value, $key]
+                    "INSERT INTO global_settings (setting_key, setting_value, description, category) VALUES (?, ?, ?, 'system') 
+                     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+                    [$key, (string)$value, $desc]
                 );
             }
+
+            // Clear settings cache for fresh reads
+            $settings->clearCache();
 
             // Audit maintenance toggle explicitly if changed
             if (($oldMaint === '1' && $systemSettings['maintenance_mode'] === '0') || ($oldMaint === '0' && $systemSettings['maintenance_mode'] === '1')) {
@@ -295,7 +311,11 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                         <input type="hidden" name="action" value="update_system_settings">
-
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="maintenance_mode" name="maintenance_mode" value="1" <?php echo ($systemSettings['maintenance_mode'] ?? '0') === '1' ? 'checked' : ''; ?>>
+                            <label class="form-check-label" for="maintenance_mode">Maintenance Mode</label>
+                            <div class="form-text">When enabled, only super administrators can log in. All other login attempts are blocked with a 503 response and a notice on the login page.</div>
+                        </div>
                         <div class="mb-3">
                             <label for="session_timeout" class="form-label">Session Timeout (seconds)</label>
                             <input type="number" class="form-control" id="session_timeout" name="session_timeout" value="<?php echo htmlspecialchars($systemSettings['session_timeout']); ?>" min="300" required>
@@ -398,11 +418,6 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <input type="number" class="form-control" id="dnssec_hold_period_days" name="dnssec_hold_period_days" value="<?php echo htmlspecialchars($systemSettings['dnssec_hold_period_days'] ?: '7'); ?>" min="1" max="60">
                             <small class="text-muted">Days to keep both old and new keys active during a timed rollover before retiring the old key. Align with parent DS TTL.</small>
                         </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="maintenance_mode" name="maintenance_mode" value="1" <?php echo ($systemSettings['maintenance_mode'] ?? '0') === '1' ? 'checked' : ''; ?>>
-                            <label class="form-check-label" for="maintenance_mode">Maintenance Mode</label>
-                            <div class="form-text">When enabled, only super administrators can log in. All other login attempts are blocked with a 503 response and a notice on the login page.</div>
-                        </div>
                         <hr>
                         <h6 class="fw-semibold mb-3"><i class="bi bi-key me-1"></i>Login CAPTCHA / Human Verification</h6>
                         <div class="mb-3">
@@ -460,22 +475,22 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <div class="mb-4">
                             <hr>
                             <h6 class="fw-semibold mb-3"><i class="bi bi-link-45deg me-1"></i>PowerDNS API (Optional, but required for DNSSEC)</h6>
-                            <div class="form-text mb-2">Used for DNSSEC key generation, rectification & signed zone operations. All settings in PowerDNS Server pdns.conf file.
+                            <div class="form-text text-muted mb-2">Used for DNSSEC key generation, rectification & signed zone operations. All settings in PowerDNS Server pdns.conf file.
                                 Must enable 'api=yes', 'webserver=yes', then set 'api-key', 'webserver-address' and 'webserver-port'.
                                 Use setting 'webserver-allow-from' to restrict access to IP of PDNS Console.</div>
                             <div class="mb-3">
                                 <label for="pdns_api_host" class="form-label">API Hostname / IP</label>
-                                <input type="text" class="form-control" id="pdns_api_host" name="pdns_api_host" placeholder="127.0.0.1 or pdns.internal" value="<?php echo htmlspecialchars($systemSettings['pdns_api_host'] ?? ''); ?>">
+                                <input type="text" class="form-control" id="pdns_api_host" name="pdns_api_host" placeholder="127.0.0.1 or pdns.example.com" value="<?php echo htmlspecialchars($systemSettings['pdns_api_host'] ?? ''); ?>">
                                 <small class="text-muted">Leave blank to disable API integration. Hostname or IP only.</small>
                             </div>
                             <div class="row g-3 align-items-end">
                                 <div class="col-sm-3">
                                     <label for="pdns_api_port" class="form-label">Port</label>
-                                    <input type="number" class="form-control" id="pdns_api_port" name="pdns_api_port" value="<?php echo htmlspecialchars($systemSettings['pdns_api_port'] ?: '8081'); ?>" min="1" max="65535">
+                                    <input type="number" class="form-control" id="pdns_api_port" name="pdns_api_port" value="<?php echo htmlspecialchars($systemSettings['pdns_api_port'] ?? ''); ?>" placeholder="8081" min="1" max="65535">
                                 </div>
                                 <div class="col-sm-3">
                                     <label for="pdns_api_server_id" class="form-label">Server ID</label>
-                                    <input type="text" class="form-control" id="pdns_api_server_id" name="pdns_api_server_id" value="<?php echo htmlspecialchars($systemSettings['pdns_api_server_id'] ?: 'localhost'); ?>" placeholder="localhost">
+                                    <input type="text" class="form-control" id="pdns_api_server_id" name="pdns_api_server_id" value="<?php echo htmlspecialchars($systemSettings['pdns_api_server_id'] ?? ''); ?>" placeholder="localhost">
                                 </div>
                                 <div class="col-sm-4">
                                     <label for="pdns_api_key" class="form-label">API Key</label>
@@ -496,7 +511,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             <div class="mt-2">
                                 <span id="pdnsTestResult" class="small text-muted"></span>
                             </div>
-                            <small class="text-muted d-block mt-2">Clearing hostname/IP removes all PDNS settings. Save settings before testing.</small>
+                            <small class="text-muted d-block mt-2">Clearing hostname/IP removes all PDNS API settings. Save settings before testing.</small>
                         </div>
                         <div class="d-grid">
                             <button type="submit" class="btn btn-success">
@@ -510,8 +525,6 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
         </div>
         
     </div>
-
-    <!-- Summary removed (DNS & Email moved) -->
 </div>
 
 <script>
@@ -527,12 +540,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (testBtn) {
         testBtn.addEventListener('click', function(){
             const host = document.getElementById('pdns_api_host').value.trim();
+            const port = document.getElementById('pdns_api_port').value.trim();
+            const serverId = document.getElementById('pdns_api_server_id').value.trim();
+            const key = document.getElementById('pdns_api_key').value.trim() || (document.getElementById('pdns_api_key').dataset.secret || '');
             const resultEl = document.getElementById('pdnsTestResult');
             resultEl.textContent = 'Testing...';
             resultEl.className = 'ms-2 small text-muted';
             if(!host){ resultEl.textContent='Host required'; resultEl.className='ms-2 small text-danger'; return; }
+            if(!key){ resultEl.textContent='API key required'; resultEl.className='ms-2 small text-danger'; return; }
             const fd = new FormData();
             fd.append('action','test_connection');
+            fd.append('pdns_api_host', host);
+            if (port) fd.append('pdns_api_port', port);
+            if (serverId) fd.append('pdns_api_server_id', serverId);
+            fd.append('pdns_api_key', key);
             // Use absolute path to avoid relative directory issues
             fetch('/api/pdns.php', { method:'POST', body: fd, credentials:'same-origin' })
               .then(async r => {
@@ -546,7 +567,9 @@ document.addEventListener('DOMContentLoaded', function() {
                      return;
                   }
                   if(j.success){
-                      resultEl.textContent='Connection OK';
+                      const ver = j.version ? (' v'+j.version) : '';
+                      const lat = typeof j.latency_ms !== 'undefined' ? (' ('+j.latency_ms+' ms)') : '';
+                      resultEl.textContent='Connection OK'+ver+lat;
                       resultEl.className='ms-2 small text-success';
                   } else {
                       resultEl.textContent='Failed: '+(j.error||j.message||'Unknown error');

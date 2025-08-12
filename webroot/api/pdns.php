@@ -25,8 +25,24 @@ $response = ['success' => false];
 
 try {
     $client = null;
+    // For test_connection, allow overriding connection params from POST (unsaved form values)
     try {
-        $client = new PdnsApiClient();
+        if ($action === 'test_connection' && (isset($_POST['pdns_api_host']) || isset($_POST['pdns_api_key']) || isset($_POST['pdns_api_port']) || isset($_POST['pdns_api_server_id']))) {
+            $host = trim((string)($_POST['pdns_api_host'] ?? ''));
+            $port = trim((string)($_POST['pdns_api_port'] ?? '8081'));
+            $serverId = trim((string)($_POST['pdns_api_server_id'] ?? 'localhost'));
+            $keyPlain = (string)($_POST['pdns_api_key'] ?? '');
+            if ($host === '' || $keyPlain === '') {
+                echo json_encode(['success' => false, 'error' => 'Host and API key are required to test.']);
+                exit;
+            }
+            $client = new PdnsApiClient($host, $port, null, $keyPlain);
+            $client->setServerId($serverId ?: 'localhost');
+            $client->setConnectTimeout(1);
+            $client->setTimeout(2);
+        } else {
+            $client = new PdnsApiClient();
+        }
     } catch (Exception $initEx) {
         if ($action === 'test_connection') {
             echo json_encode([
@@ -43,9 +59,24 @@ try {
 
     switch ($action) {
         case 'test_connection':
-            $ok = $client->testConnection();
-            $response['success'] = $ok;
-            $response['message'] = $ok ? 'Connection successful' : 'Connection failed';
+            // Prefer a direct server info call for latency and version
+            $t0 = microtime(true);
+            try {
+                $info = $client->getServerInfo();
+                $t1 = microtime(true);
+                if (is_array($info)) {
+                    $response['success'] = true;
+                    $response['message'] = 'Connection successful';
+                    $response['latency_ms'] = (int)round(($t1 - $t0) * 1000);
+                    $response['version'] = $info['version'] ?? ($info['daemon_version'] ?? null);
+                } else {
+                    $response['success'] = false;
+                    $response['error'] = 'Unexpected response from server';
+                }
+            } catch (Exception $e) {
+                $response['success'] = false;
+                $response['error'] = $e->getMessage();
+            }
             break;
 
     case 'dnssec_status':

@@ -123,20 +123,17 @@ function renderThemeModal(themeData) {
     // Remove any existing modal with the same ID
     const existingModal = document.getElementById('themeModal');
     if (existingModal) {
-        // Try to close it properly first
         try {
-            const bsExistingModal = bootstrap.Modal.getInstance(existingModal);
-            if (bsExistingModal) bsExistingModal.dispose();
-        } catch (e) {
-            console.log('No existing modal instance found');
-        }
-        
-        // Remove modal and backdrop elements
+            const bsExistingModal = bootstrap.Modal.getInstance(existingModal) || new bootstrap.Modal(existingModal);
+            bsExistingModal.hide();
+            bsExistingModal.dispose();
+        } catch (e) { /* ignore */ }
         existingModal.remove();
-        const backdrop = document.querySelector('.modal-backdrop');
-        if (backdrop) backdrop.remove();
-        document.body.classList.remove('modal-open');
     }
+    // Remove any lingering backdrops and reset body state
+    document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
     
     // Inject modal into document
     const modalContainer = document.createElement('div');
@@ -144,7 +141,21 @@ function renderThemeModal(themeData) {
     document.body.appendChild(modalContainer);
     
     // Initialize Bootstrap modal
-    const themeModal = new bootstrap.Modal(document.getElementById('themeModal'));
+    const themeModalEl = document.getElementById('themeModal');
+    const themeModal = new bootstrap.Modal(themeModalEl);
+    themeModalEl.addEventListener('hidden.bs.modal', () => {
+        // Clean up to restore scrollbars
+        setTimeout(() => {
+            document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.removeProperty('padding-right');
+        }, 0);
+        // Dispose and remove the modal element to avoid duplicates
+        try { themeModal.dispose(); } catch (e) { /* ignore */ }
+        if (themeModalEl && themeModalEl.parentElement) {
+            themeModalEl.parentElement.remove();
+        }
+    }, { once: true });
     themeModal.show();
     
     // Add event listeners

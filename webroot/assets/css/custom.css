@@ -713,6 +713,43 @@ body.dark-mode .card .card-header.bg-primary { background-color: var(--bs-primar
 body.dark-mode .card .card-header.bg-warning { background-color: var(--bs-warning) !important; }
 body.dark-mode .card .card-header.bg-info { background-color: var(--bs-info) !important; }
 
+/* DNS hero band — honors theme via Bootstrap CSS variables */
+.dns-hero {
+    /* Lighter sides -> darker middle (theme-aware) */
+    background:
+        radial-gradient(80% 120% at 50% 50%,
+            rgba(var(--bs-primary-rgb), .95) 0%,
+            rgba(var(--bs-primary-rgb), .8) 40%,
+            rgba(var(--bs-primary-rgb), .45) 60%,
+            rgba(var(--bs-primary-rgb), .18) 80%,
+            rgba(var(--bs-primary-rgb), .04) 100%
+        ),
+        linear-gradient(90deg,
+            rgba(var(--bs-primary-rgb), .06) 0%,
+            rgba(var(--bs-primary-rgb), .06) 100%
+        );
+    color: var(--bs-white);
+    border-radius: .75rem;
+}
+.dns-hero .hero-inner {
+    padding: 2rem 1rem;
+}
+@media (min-width: 992px) {
+    .dns-hero .hero-inner { padding: 3rem 2rem; }
+}
+.dns-hero .hero-tile {
+    width: 100%;
+    max-width: 960px;
+    min-height: 160px;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: .5rem;
+    padding: 1.5rem;
+}
+.dns-hero .icon-wrap { margin-bottom: .75rem; }
+.dns-hero .title { color: var(--bs-body-color); }
+.dns-hero small { color: var(--bs-secondary-color); }
+
 /* Specific fix for Search and Filters card shifting issue */
 .card.mb-4:hover {
     transform: none !important;

@@ -12,17 +12,18 @@ class PdnsApiClient {
     private $apiKey; // decrypted key
     private $baseUrl;
     private $timeout = 10;
+    private $connectTimeout = 5;
     private $serverId;
     private $lastResponseInfo = [];
 
-    public function __construct($host = null, $port = null, $apiKeyEnc = null) {
+    public function __construct($host = null, $port = null, $apiKeyEnc = null, $apiKeyPlain = null) {
         $settings = new Settings();
         $enc = new Encryption();
 
         $this->host = $host ?: $settings->get('pdns_api_host');
         $this->port = $port ?: $settings->get('pdns_api_port', '8081');
         $encKey = $apiKeyEnc ?: $settings->get('pdns_api_key_enc');
-        $this->apiKey = $encKey ? $enc->decrypt($encKey) : null;
+        $this->apiKey = $apiKeyPlain ?: ($encKey ? $enc->decrypt($encKey) : null);
     // PowerDNS server-id (from pdns.conf 'server-id' / API path segment). Default 'localhost'.
     $this->serverId = $settings->get('pdns_api_server_id', 'localhost') ?: 'localhost';
 
@@ -34,7 +35,8 @@ class PdnsApiClient {
         $this->baseUrl = rtrim($scheme . $this->host, '/') . ':' . $this->port . '/api/v1';
     }
 
-    public function setTimeout($seconds) { $this->timeout = (int)$seconds; }
+    public function setTimeout($seconds) { $this->timeout = max(1, (int)$seconds); }
+    public function setConnectTimeout($seconds) { $this->connectTimeout = max(1, (int)$seconds); }
     public function setServerId($serverId) { $this->serverId = $serverId ?: 'localhost'; }
     public function getLastResponseInfo() { return $this->lastResponseInfo; }
 
@@ -47,6 +49,20 @@ class PdnsApiClient {
             return is_array($resp) && !empty($resp);
         } catch (Exception $e) {
             return false;
+        }
+    }
+
+    /**
+     * Get server info for the configured server-id (includes version)
+     * @return array|null
+     */
+    public function getServerInfo() {
+        try {
+            $path = "/servers/{$this->serverId}";
+            $resp = $this->request('GET', $path);
+            return is_array($resp) ? $resp : null;
+        } catch (Exception $e) {
+            return null;
         }
     }
 
@@ -188,8 +204,12 @@ class PdnsApiClient {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_TIMEOUT, $this->timeout);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, $this->connectTimeout);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        // Prefer IPv4 to avoid slow IPv6 fallbacks on misconfigured networks
+        if (defined('CURL_IPRESOLVE_V4')) {
+            curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+        }
 
         if ($payload !== null) {
             $json = json_encode($payload);
