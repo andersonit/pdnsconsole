@@ -1,4 +1,14 @@
 <?php
+/**
+ * PDNS Console
+ * Copyright (c) 2025 Neowyze LLC
+ *
+ * Licensed under the Business Source License 1.0.
+ * You may use this file in compliance with the license terms.
+ *
+ * License details: https://github.com/andersonit/pdnsconsole/blob/main/LICENSE.md
+ */
+
 // PDNS Console - Super Admin Dashboard
 
 // Setup and authorization

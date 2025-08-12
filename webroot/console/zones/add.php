@@ -1,4 +1,14 @@
 <?php
+/**
+ * PDNS Console
+ * Copyright (c) 2025 Neowyze LLC
+ *
+ * Licensed under the Business Source License 1.0.
+ * You may use this file in compliance with the license terms.
+ *
+ * License details: https://github.com/andersonit/pdnsconsole/blob/main/LICENSE.md
+ */
+
 // Ensure database instance is available before any license checks/output
 if (!isset($db)) {
     $db = Database::getInstance();

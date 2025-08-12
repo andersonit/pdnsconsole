@@ -1,4 +1,14 @@
 <?php
+/**
+ * PDNS Console
+ * Copyright (c) 2025 Neowyze LLC
+ *
+ * Licensed under the Business Source License 1.0.
+ * You may use this file in compliance with the license terms.
+ *
+ * License details: https://github.com/andersonit/pdnsconsole/blob/main/LICENSE.md
+ */
+
 // Include Settings class for footer branding and optional PDNS API status
 require_once __DIR__ . '/../classes/Settings.php';
 require_once __DIR__ . '/../classes/PdnsApiClient.php';

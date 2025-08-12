@@ -1,5 +1,15 @@
 #!/usr/bin/env php
 <?php
+/**
+ * PDNS Console
+ * Copyright (c) 2025 Neowyze LLC
+ *
+ * Licensed under the Business Source License 1.0.
+ * You may use this file in compliance with the license terms.
+ *
+ * License details: https://github.com/andersonit/pdnsconsole/blob/main/LICENSE.md
+ */
+
 // Simple CLI license generator (private use only)
 // Usage: php cli_generate.php --email customer@example.com --type commercial --domains 100 --key /path/to/private.pem [--install INSTALLATION_ID] [--db "mysql:host=localhost;dbname=license_admin"] [--dbuser user] [--dbpass pass]
 
