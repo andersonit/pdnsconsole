@@ -1,35 +1,41 @@
 # PDNS Console
 
-A comprehensive web-based administration interface for PowerDNS with MySQL backend, featuring multi-tenant architecture, role-based access control, and commercial licensing.
+A comprehensive web-based administration interface for PowerDNS with MySQL/MariaDB backend, featuring multi-tenant architecture, role-based access control, DNSSEC, Dynamic DNS, and commercial licensing. PDNS Console follows a freemium model with full functionality for up to 5 domains. A reasonably priced commercial license is available at https://pdnsconsole.com.
 
 ## 🚀 Features
 
-- **Multi-tenant Architecture** - Isolate domains and users by tenant
-- **Role-based Access Control** - Super admin and tenant admin roles
-- **DNS Record Management** - Full support for A, AAAA, CNAME, MX, TXT, SRV, PTR, NS, SOA records
-- **Enhanced TXT Record Validation** - SPF, DKIM, DMARC detection and validation
-- **DNSSEC Support** - Key management and generation (Phase 4)
-- **Dynamic DNS API** - ddclient compatible endpoints
-- **Two-Factor Authentication** - TOTP with encrypted backup codes
-- **White-label Branding** - Customizable themes and branding
-- **Database Sessions** - HAProxy cluster compatible
-- **CSV Import/Export** - Bulk operations with validation
-- **Audit Logging** - Complete activity tracking
-- **Commercial Licensing** - Freemium model with $50 unlimited license
+- Multi-tenant architecture with tenant isolation
+- Role-based access control (Super Admin, Tenant Admin)
+- DNS record management: A, AAAA, CNAME, MX, TXT, SRV, PTR (NS/SOA managed automatically by system)
+- Forward and reverse DNS zones (zone-aware filtering; PTR in reverse zones)
+- Enhanced TXT validation: SPF, DKIM, DMARC semantic checks and hints
+- DNSSEC: full UI for enable/disable, key generation, rollover (Add/Immediate/Timed), DS assistance, registrar verification
+- Dynamic DNS API: ddclient-compatible A/AAAA updates with rate limiting
+- Record comments: per-record single comment plus zone-level info comment
+- Two-Factor Authentication (TOTP) with encrypted backup codes
+- Human verification: Cloudflare Turnstile or Google reCAPTCHA
+- White-label branding and Bootswatch themes
+- Database-backed sessions (HA/cluster friendly)
+- CSV import/export with validation (NS/SOA excluded)
+- Audit logging for critical actions
+- Licensing: free up to 5 domains; commercial license unlocks unlimited
 
 ## 📋 Requirements
 
-- **PHP 8.0+** with PDO MySQL extension
-- **MySQL 8.0+** or MariaDB 10.x
-- **Web Server** (Apache/Nginx) with SSL
-- **OpenSSL** for encryption and DNSSEC operations
+- PHP 8.0+ with PDO MySQL extension
+- MySQL 8.0+ or MariaDB 10.x
+- Web server (Apache or Nginx) with SSL
+- OpenSSL for encryption and DNSSEC operations
+- PowerDNS with gmysql backend (Native domains) – see [PowerDNS Installation](docs/POWERDNS_INSTALLATION.md)
+
+Note: PDNS Console operates in Native mode only. MASTER/SLAVE workflows are not exposed in the UI; all authoritative servers should share the same PowerDNS database.
 
 ## 🛠️ Installation
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/pdnsconsole.git
+git clone https://github.com/andersonit/pdnsconsole.git
 cd pdnsconsole
 ```
 
@@ -68,9 +74,9 @@ php cli/create_admin.php
 
 Point your web server document root to the `webroot/` directory.
 
-### 7. Test Installation
+### 7. Finish and Log In
 
-Visit `http://yourserver/test.php` to verify the setup.
+Point your browser to the site (root or subdirectory where `webroot/` is served) and log in with the super admin you created.
 
 ## 🔧 Configuration
 
@@ -160,6 +166,12 @@ curl -X PUT "https://yourserver/api/dynamic_dns.php" \
 
 Rate limiting: 3 requests per 3 minutes, then 1 request per 10 minutes.
 
+See the detailed guide in [docs/DYNAMIC_DNS.md](docs/DYNAMIC_DNS.md).
+
+API endpoint: `webroot/api/dynamic_dns.php` (routed via your web server).
+
+Example ddclient configuration is provided in the documentation.
+
 ## 💾 Database Schema
 
 The system extends the standard PowerDNS MySQL schema with additional tables:
@@ -176,18 +188,26 @@ The system extends the standard PowerDNS MySQL schema with additional tables:
 ### PDNS Console Extensions
 - `admin_users` - Administrative users
 - `tenants` - Multi-tenant organizations
-- `global_settings` - Configuration & branding
-- `user_sessions` - Database sessions
+- `user_tenants` - User-to-tenant mapping
+- `domain_tenants` - Domain-to-tenant mapping
+- `global_settings` - Configuration, branding, licensing key and installation id
+- `nameservers` - Managed NS set used for automatic NS/SOA management
+- `user_sessions` - Database sessions (cluster-friendly)
+- `user_mfa` - Encrypted TOTP secrets and backup codes
+- `custom_record_types` - Admin-configurable record types
+- `dynamic_dns_tokens` - Tokens and rate-limit state for Dynamic DNS API
+- `record_comments` - Per-record single comment storage
 - `audit_log` - Activity tracking
-- `licenses` - License management
+- `password_reset_tokens` - Secure password reset workflow
 
-## 🔄 Development Phases
+## 🔄 Status & Roadmap
 
-- ✅ **Phase 1**: Foundation (Database, Auth, 2FA, Sessions)
-- 🚧 **Phase 2**: Core DNS Management (Records, Validation)
-- ⏳ **Phase 3**: Advanced Features (API, CSV, Custom Records)
-- ⏳ **Phase 4**: DNSSEC & Polish
-- ⏳ **Phase 5**: Licensing System
+- Core platform, multi-tenant auth, sessions, and theming: Complete
+- Records management with enhanced TXT validation and CSV import/export: Complete (future: import dry-run/diff)
+- Dynamic DNS API with rate limiting: Complete
+- DNSSEC (enable/disable, keys, rollover, DS assistance, registrar verification): Complete — see [docs/DNSSEC.md](docs/DNSSEC.md)
+- Licensing system (freemium + commercial): Complete
+- Upcoming: expanded audit coverage, CSV import dry-run/diff, optional bulk DNSSEC helpers
 
 ## 🤝 Contributing
 
@@ -199,7 +219,7 @@ The system extends the standard PowerDNS MySQL schema with additional tables:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Business Source License (BSL). Free for non-commercial use managing up to 5 domains per installation. Commercial license required for more domains or commercial use. See [LICENSE.md](LICENSE.md) and https://pdnsconsole.com.
 
 ## 🆘 Support
 
@@ -223,13 +243,27 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🎯 Roadmap
 
+- [ ] CSV import dry-run + diff/upsert reporting
+- [ ] Expanded audit coverage (auth events, API usage, comment changes)
 - [ ] REST API for external integrations
-- [ ] Bulk domain operations
 - [ ] DNS zone templates
-- [ ] Advanced DNSSEC automation
-- [ ] Mobile-responsive improvements
-- [ ] Plugin system for extensions
+- [ ] Optional bulk DNSSEC operations
+- [ ] Extension system for validators
+
+### Cron jobs
+
+To support automated tasks, schedule the provided scripts:
+
+- DNSSEC timed rollover finalization: `cron/dnssec_rollover.php`
+- Session cleanup: `cron/session_cleanup.php`
+
+Example crontab entries (adjust PHP path):
+
+```
+*/15 * * * * /usr/bin/php /var/www/pdnsconsole/cron/dnssec_rollover.php > /dev/null 2>&1
+0 * * * * /usr/bin/php /var/www/pdnsconsole/cron/session_cleanup.php > /dev/null 2>&1
+```
 
 ---
 
-**PDNS Console** - Professional DNS management made simple.
+**PDNS Console** — Professional DNS management made simple.

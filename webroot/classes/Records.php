@@ -267,13 +267,13 @@ class Records {
             throw new Exception('Invalid record type: ' . $type);
         }
         
-        // Validate content format
-        if (!$this->validateRecordContent($type, $content)) {
+    // Validate content format
+    if (!$this->validateRecordContent($type, $content)) {
             throw new Exception('Invalid content format for ' . $type . ' record');
         }
         
-        // Normalize name
-        $name = $this->normalizeName($name, $domain['name']);
+    // Normalize name
+    $name = $this->normalizeName($name, $domain['name']);
         
         // Validate name format
         if (!$this->validateRecordName($name)) {
@@ -299,6 +299,11 @@ class Records {
             }
         }
         
+        // TXT semantic validation (SPF/DKIM/DMARC) before storage
+        if (strtoupper($type) === 'TXT') {
+            $this->validateTxtSemantics($name, $domain['name'], $content);
+        }
+
         // Normalize TXT content to include quotes required by PowerDNS
         if (strtoupper($type) === 'TXT') {
             $content = $this->normalizeTxtContent($content);
@@ -353,16 +358,16 @@ class Records {
             throw new Exception('Invalid record type: ' . $type);
         }
         
-        // Validate content format
-        if (!$this->validateRecordContent($type, $content)) {
+    // Validate content format
+    if (!$this->validateRecordContent($type, $content)) {
             throw new Exception('Invalid content format for ' . $type . ' record');
         }
         
         // Get domain info
         $domain = $this->domain->getDomainById($record['domain_id'], $tenantId);
         
-        // Normalize name
-        $name = $this->normalizeName($name, $domain['name']);
+    // Normalize name
+    $name = $this->normalizeName($name, $domain['name']);
         
         // Validate name format
         if (!$this->validateRecordName($name)) {
@@ -390,6 +395,11 @@ class Records {
             }
         }
         
+        // TXT semantic validation (SPF/DKIM/DMARC) before storage
+        if (strtoupper($type) === 'TXT') {
+            $this->validateTxtSemantics($name, $domain['name'], $content);
+        }
+
         // Normalize TXT content to include quotes required by PowerDNS
         if (strtoupper($type) === 'TXT') {
             $content = $this->normalizeTxtContent($content);
@@ -416,12 +426,203 @@ class Records {
     private function normalizeTxtContent($content) {
         $trimmed = trim((string)$content);
         if ($trimmed === '') return '""';
-        if ($trimmed[0] === '"' && substr($trimmed, -1) === '"') {
+        // If already as multiple quoted strings, assume caller provided valid formatting
+        if ($trimmed[0] === '"' && substr($trimmed, -1) === '"' && preg_match('/"\s+"/', $trimmed)) {
             return $trimmed;
         }
-        // Escape unescaped quotes (quotes not preceded by a backslash) and wrap once
+        // If single quoted string, keep as-is unless it exceeds 255 inside
+        if ($trimmed[0] === '"' && substr($trimmed, -1) === '"') {
+            $inner = substr($trimmed, 1, -1);
+            $len = strlen($inner);
+            if ($len <= 255) return $trimmed;
+            $parts = [];
+            for ($i = 0; $i < $len; $i += 255) {
+                $parts[] = '"' . substr($inner, $i, 255) . '"';
+            }
+            return implode(' ', $parts);
+        }
+        // Escape unescaped quotes
         $escaped = preg_replace('/(?<!\\\\)"/', '\\"', $trimmed);
-        return '"' . $escaped . '"';
+        if ($escaped === null) { // safety fallback if PCRE fails
+            $escaped = str_replace('"', '\\"', $trimmed);
+        }
+        $len = strlen($escaped);
+        if ($len <= 255) return '"' . $escaped . '"';
+        $parts = [];
+        for ($i = 0; $i < $len; $i += 255) {
+            $parts[] = '"' . substr($escaped, $i, 255) . '"';
+        }
+        return implode(' ', $parts);
+    }
+
+    /**
+     * Validate semantic TXT subtypes (SPF/DKIM/DMARC). Throws Exception on invalid strict cases.
+     */
+    private function validateTxtSemantics($fqdnName, $zoneName, $content) {
+        $raw = trim((string)$content);
+        // If TXT provided in quoted form (possibly multiple segments), merge segments for semantic validation
+        $c = $raw;
+        if ($raw !== '') {
+            if (preg_match_all('/"([^"\\\\]*(?:\\\\.[^"\\\\]*)*)"/', $raw, $m) && count($m[1]) > 0) {
+                $segments = array_map('stripcslashes', $m[1]);
+                $c = implode('', $segments);
+            } else {
+                // Trim single pair of quotes if present
+                if ($raw[0] === '"' && substr($raw, -1) === '"') {
+                    $c = stripcslashes(substr($raw, 1, -1));
+                }
+            }
+            $c = trim($c);
+        }
+        // SPF
+        if (preg_match('/^v=spf1(?:\s|$)/i', $c)) {
+            $this->validateSpf($c);
+        }
+        // DMARC: must be at _dmarc.<zone> or a subdomain (_dmarc.sub.zone)
+        if (preg_match('/^v=\s*DMARC1\s*;/i', $c)) {
+            $this->validateDmarc($fqdnName, $zoneName, $c);
+        }
+        // DKIM: should be at <selector>._domainkey.<zone>
+        if (preg_match('/^v=\s*DKIM1\s*;/i', $c)) {
+            $this->validateDkim($fqdnName, $zoneName, $c);
+        }
+    }
+
+    private function validateSpf($content) {
+        // Basic SPF syntax check: starts with v=spf1 and tokens are valid
+        $tokens = preg_split('/\s+/', trim($content));
+        if (strtolower($tokens[0]) !== 'v=spf1') {
+            throw new Exception('SPF must start with v=spf1');
+        }
+        $validMech = ['all','include','a','mx','ptr','ip4','ip6','exists','redirect','exp'];
+        for ($i=1; $i<count($tokens); $i++) {
+            $t = $tokens[$i]; if ($t==='') continue;
+            // modifiers (redirect=, exp=)
+            if (preg_match('/^(redirect|exp)=[^\s]+$/', $t)) continue;
+            // mechanism with optional qualifier
+            $q = substr($t,0,1);
+            if (in_array($q, ['+','-','~','?'])) { $t = substr($t,1); }
+            $parts = explode(':', $t, 2);
+            $mech = strtolower($parts[0]); $arg = $parts[1] ?? '';
+            if (!in_array($mech, $validMech, true)) {
+                throw new Exception('Invalid SPF mechanism: '.$mech);
+            }
+            if ($mech === 'ip4') {
+                if ($arg === '') {
+                    throw new Exception('SPF ip4 requires an IPv4 address (optionally with /mask)');
+                }
+                if (strpos($arg, '/') !== false) {
+                    [$ip, $mask] = explode('/', $arg, 2);
+                    $ip = trim($ip); $mask = trim($mask);
+                    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+                        throw new Exception('Invalid SPF ip4 address: '.$ip);
+                    }
+                    if ($mask === '' || !ctype_digit($mask) || (int)$mask < 0 || (int)$mask > 32) {
+                        throw new Exception('Invalid SPF ip4 mask (0-32): '.$mask);
+                    }
+                } else {
+                    if (filter_var($arg, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+                        throw new Exception('Invalid SPF ip4 address: '.$arg);
+                    }
+                }
+                continue;
+            }
+            if ($mech === 'ip6') {
+                if ($arg === '') {
+                    throw new Exception('SPF ip6 requires an IPv6 address (optionally with /mask)');
+                }
+                if (strpos($arg, '/') !== false) {
+                    [$ip, $mask] = explode('/', $arg, 2);
+                    $ip = trim($ip); $mask = trim($mask);
+                    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                        throw new Exception('Invalid SPF ip6 address: '.$ip);
+                    }
+                    if ($mask === '' || !ctype_digit($mask) || (int)$mask < 0 || (int)$mask > 128) {
+                        throw new Exception('Invalid SPF ip6 mask (0-128): '.$mask);
+                    }
+                } else {
+                    if (filter_var($arg, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) === false) {
+                        throw new Exception('Invalid SPF ip6 address: '.$arg);
+                    }
+                }
+                continue;
+            }
+            if (in_array($mech, ['include','exists','a','mx','ptr'], true) && $arg !== '') {
+                // Allow SPF macros (e.g., %{i}); skip strict hostname validation when present
+                if (str_contains($arg, '%{')) {
+                    continue;
+                }
+                if (!$this->isValidHostname($arg)) {
+                    throw new Exception('Invalid SPF hostname in '.$mech.': '.$arg);
+                }
+            }
+        }
+    }
+
+    private function validateDmarc($fqdnName, $zoneName, $content) {
+        // name should match _dmarc.<domain> or _dmarc.<sub>.<domain>
+        if (!preg_match('/^_dmarc\./i', $fqdnName)) {
+            throw new Exception('DMARC TXT must be at _dmarc.<domain>');
+        }
+        // Parse tags
+        $tags = [];
+        foreach (explode(';', $content) as $seg) {
+            $seg = trim($seg); if ($seg==='') continue;
+            if (stripos($seg, 'v=DMARC1') === 0) { $tags['v'] = 'DMARC1'; continue; }
+            $kv = explode('=', $seg, 2);
+            if (count($kv)===2) { $tags[strtolower(trim($kv[0]))] = trim($kv[1]); }
+        }
+        if (empty($tags['v']) || strtoupper($tags['v']) !== 'DMARC1') {
+            throw new Exception('DMARC must include v=DMARC1');
+        }
+        if (empty($tags['p']) || !in_array(strtolower($tags['p']), ['none','quarantine','reject'], true)) {
+            throw new Exception('DMARC requires p=none|quarantine|reject');
+        }
+        if (!empty($tags['pct']) && (!ctype_digit($tags['pct']) || (int)$tags['pct']<0 || (int)$tags['pct']>100)) {
+            throw new Exception('DMARC pct must be 0-100');
+        }
+        if (!empty($tags['adkim']) && !in_array(strtolower($tags['adkim']), ['r','s'], true)) {
+            throw new Exception('DMARC adkim must be r or s');
+        }
+        if (!empty($tags['aspf']) && !in_array(strtolower($tags['aspf']), ['r','s'], true)) {
+            throw new Exception('DMARC aspf must be r or s');
+        }
+        foreach (['rua','ruf'] as $t) {
+            if (!empty($tags[$t])) {
+                $uris = array_map('trim', explode(',', $tags[$t]));
+                foreach ($uris as $u) {
+                    if (!preg_match('/^mailto:.+@.+\..+$/i', $u)) {
+                        throw new Exception('DMARC '.$t.' must be mailto: URI');
+                    }
+                }
+            }
+        }
+    }
+
+    private function validateDkim($fqdnName, $zoneName, $content) {
+        // Must be under _domainkey
+        if (!preg_match('/\._domainkey\./i', $fqdnName)) {
+            throw new Exception('DKIM TXT must be at <selector>._domainkey.<domain>');
+        }
+        // Require p=
+        if (!preg_match('/(^|;)\s*p=([A-Za-z0-9\/+]+=*)/i', $content, $m)) {
+            throw new Exception('DKIM record must include p=<base64 public key>');
+        }
+        // Basic base64 check
+        $p = $m[2];
+        if (!preg_match('/^[A-Za-z0-9\/+]+=*$/', $p)) {
+            throw new Exception('DKIM p= contains invalid base64 characters');
+        }
+        if (preg_match('/(^|;)\s*k=([^;\s]+)/i', $content, $mk)) {
+            $k = strtolower($mk[2]);
+            if (!in_array($k, ['rsa','ed25519'], true)) {
+                throw new Exception('DKIM k= must be rsa or ed25519');
+            }
+        }
+    }
+
+    private function isValidHostname($host) {
+        return (bool)preg_match('/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/', $host);
     }
     
     /**
@@ -460,6 +661,10 @@ class Records {
      */
     private function validateRecordContent($type, $content) {
         $content = trim($content);
+        if ($type === 'TXT') {
+            // Accept any non-empty TXT up to a reasonable limit (schema allows large); normalization will chunk to <=255 segments
+            return $content !== '' && strlen($content) <= 64000;
+        }
         // Use native validators for IP addresses for accuracy
         if ($type === 'A') {
             return filter_var($content, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
@@ -497,19 +702,19 @@ class Records {
      * Normalize record name (convert @ to domain name, ensure proper format)
      */
     private function normalizeName($name, $domainName) {
-        $name = trim($name);
-        
-        // Convert @ to domain name
-        if ($name === '@' || empty($name)) {
+        $name = trim((string)$name);
+        $domainName = rtrim((string)$domainName, '.');
+        if ($name === '' || $name === '@') {
             return $domainName;
         }
-        
-        // If name doesn't end with domain, append it
-        if (!str_ends_with($name, '.' . $domainName) && $name !== $domainName) {
-            $name = $name . '.' . $domainName;
+        // Remove trailing dot if user entered an absolute FQDN
+        $nameNoDot = rtrim($name, '.');
+        // If already fully qualified under this zone, keep as-is (without trailing dot)
+        if ($nameNoDot === $domainName || str_ends_with($nameNoDot, '.' . $domainName)) {
+            return $nameNoDot;
         }
-        
-        return $name;
+        // Otherwise, treat as relative label(s) and append the zone
+        return $nameNoDot . '.' . $domainName;
     }
     
     /**

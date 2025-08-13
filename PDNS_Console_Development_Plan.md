@@ -5,12 +5,12 @@
 This document has been updated to reflect current implementation progress and changes in licensing architecture.
 
 Key Completed Since Original Draft:
-- Implemented lightweight offline licensing runtime (no license tables in public schema; uses single `license_key` + `installation_id` rows in `global_settings`).
+- Implemented lightweight offline licensing runtime (uses single `license_key` + `installation_id` rows in `global_settings`).
 - Added `LicenseManager` class: signature verification (RSA SHA256), obfuscated embedded placeholder public key with external file override + integrity flagging.
 - Stable, cluster-safe Installation Code (derived only from persistent `installation_id`) – identical across load-balanced web nodes sharing the DB.
 - Domain creation enforcement (Free = 5 domains; Commercial = configured limit or unlimited when domains=0 in key) with UI near-limit banners and hard stop.
 - Simplified comments: single comment per zone (native PowerDNS comments repurposed for zone-level INFO) and single comment per record (custom record_comments table with unique constraint); removed multi-comment APIs and legacy generic comments class.
-- Dedicated License Management page (`admin_license`) with status, key entry, installation code copy, purchase button.
+- Dedicated License Management page (`admin_license`) with status, key entry, installation code copy
 - Dashboard & footer indicators + integrity warning surfaces.
 - Audit logging of license key changes and limit blocks.
 - CLI tool `cli/license_status.php` for quick status inspection.
@@ -20,12 +20,10 @@ Key Completed Since Original Draft:
 
 Decisions / Deviations from Original Plan:
 - Removed in-app license tracking tables (`licenses`, `license_purchases`, `license_usage`) from public distribution: simplifies end-user DB and avoids migration overhead. Tracking moved to private `license_admin` environment.
-- Activation limits & multi-activation tracking deferred (would require public table reintroduction or periodic phoning home). Current model: single offline key per installation (optionally bound via `installation_id`).
-- Trial period logic not implemented (deferred; free tier remains 5 domains until upgrade).
 - Fingerprint now intentionally minimal (only persistent ID) for HA friendliness; anti-piracy relies on key issuance discipline rather than environment hash.
 
 High-Priority Remaining Work (Post-DNSSEC):
-1. Dynamic DNS API + token management + rate limiting.
+1. Dynamic DNS API + token management + rate limiting. (DONE)
 2. Enhanced TXT semantic validation (SPF/DKIM/DMARC parsing & hints).
 3. CSV import: dry-run + diff/upsert reporting.
 4. Expanded audit coverage (auth success/fail, license integrity flag events, API token use, comment set/clear actions).
@@ -108,9 +106,6 @@ Recommended Future Enhancements (Non-DNSSEC):
 - Provide `LicenseManager::rotateInstallationId()` guarded UI (only when no commercial key or with explicit warning).
 - Add basic telemetry hooks (opt-in) for anonymous feature usage stats (do not include domains or zone names) – helps roadmap alignment.
 - Introduce modular extension system for record validators; ship SPF/DKIM/DMARC as built-ins.
-- Add maintenance mode & CAPTCHA/Turnstile configuration toggles (already noted in add-on requests section).
-
-The phase checklist below has been updated where appropriate.
 
 ## Project Overview
 
@@ -389,6 +384,7 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 -- Branding settings
 ('site_name', 'PDNS Console', 'Site name displayed in header and titles', 'branding'),
 ('site_logo', '/assets/img/pdns_logo.png', 'Path to site logo image', 'branding'),
+('site_favicon', '/assets/img/favicon.ico', 'Path to site favicon', 'branding'),
 ('company_name', 'PDNS Console', 'Company name for branding', 'branding'),
 ('footer_text', 'Powered by PDNS Console', 'Footer text displayed on all pages', 'branding'),
 ('theme_name', 'default', 'Bootstrap theme name (default or bootswatch theme)', 'branding'),
@@ -408,8 +404,6 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 ('max_login_attempts', '5', 'Maximum failed login attempts before lockout', 'security'),
 ('default_tenant_domains', '0', 'Default maximum domains per tenant (0=unlimited)', 'system'),
 ('records_per_page', '25', 'Number of records to display per page', 'system'),
-
--- (Removed legacy adjustable license settings. Enforcement always on; free tier fixed at 5 domains.)
 
 ```
 
@@ -499,7 +493,6 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 #### 4.1 User Roles
 - **Super Admin**: Full system access, tenant management, global settings, system administration
 - **Tenant Admin**: Full access to assigned tenant domains and users
-- **Tenant User**: Limited access to assigned tenant domains (read-only or specific permissions)
 
 #### 4.2 Authentication Flow
 1. Login with username/email and password (stored in MySQL)
@@ -507,7 +500,7 @@ INSERT INTO global_settings (setting_key, setting_value, description, category) 
 3. Database-based session management (HAProxy cluster compatible)
 4. Role-based page access control
 5. Automatic session timeout and cleanup
-6. Designed as standalone admin interface (GitHub open-source)
+6. Designed as standalone admin interface for PowerDNS (GitHub open-source)
 
 #### 4.3 Two-Factor Authentication & Security
 - **TOTP Support**: Time-based One-Time Password using PHP library
@@ -1429,7 +1422,7 @@ This comprehensive plan incorporates all requirements and clarifications:
 - Sample configuration files with .gitignore setup
 
 **✅ Distribution & Support:**
-- Open source GitHub repository with MIT/GPL license
+- Open source GitHub repository with BSL License (Freemimum)
 - SaaS option at pdnsconsole.com (when registered)
 - Self-hosted installation with automated setup
 - Community support for free version, email support for commercial

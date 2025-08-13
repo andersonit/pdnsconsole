@@ -72,7 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Security token mismatch. Please try again.';
     } else {
-    $domainType = $_POST['domain_type'] ?? 'NATIVE';
+    // Force Native mode for PDNS domains
+    $domainType = 'NATIVE';
     $zoneType = $_POST['zone_type'] ?? 'forward';
     $tenantId = null;
     
@@ -176,9 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 
 // Get domain types
 $domainTypes = [
-    'NATIVE' => 'Native (PowerDNS manages the domain)',
-    'MASTER' => 'Master (PowerDNS is authoritative)',
-    'SLAVE' => 'Slave (PowerDNS replicates from master)'
+    'NATIVE' => 'Native (PowerDNS manages the domain)'
 ];
 
 // Page setup
@@ -266,21 +265,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                     <div class="card-body">
                         <form method="POST" id="bulkDomainForm">
                             <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
-                            <!-- Zone Type Selection -->
-                            <div class="mb-4">
-                                <label class="form-label">
-                                    Zone Type <span class="text-danger">*</span>
-                                </label>
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="zone_type" id="forward_zone" 
-                                                   value="forward" <?php echo (!isset($_POST['zone_type']) || $_POST['zone_type'] === 'forward') ? 'checked' : ''; ?>>
-                                            <label class="form-check-label" for="forward_zone">
-                                                <strong>Forward Zone</strong>
-                                                <div class="text-muted small">Regular domain names (e.g., example.com)</div>
-                                            </label>
-                                        </div>
+                            <!-- Domain Type is fixed to Native in this system; UI removed -->
                                     </div>
                                     <div class="col-md-6">
                                         <div class="form-check">

@@ -65,7 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo) {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Security token mismatch. Please try again.';
     } else {
-    $domainType = $_POST['domain_type'] ?? $domainInfo['type'];
+    // Force Native mode for PDNS domains (UI removed)
+    $domainType = 'NATIVE';
     $account = $_POST['account'] ?? $domainInfo['account'];
     $newTenantId = null;
     
@@ -175,7 +176,7 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                 
                 <?php if (!$domainInfo): ?>
                     <div class="text-center">
-                        <a href="?page=zones" class="btn btn-primary">
+                        <a href="?page=zone_manage" class="btn btn-primary">
                             <i class="bi bi-arrow-left me-1"></i>
                             Back to Zones
                         </a>
@@ -212,22 +213,7 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                                         <div class="form-text">Zone name cannot be changed after creation</div>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="mb-3">
-                                        <label for="domain_type" class="form-label">Domain Type</label>
-                                        <select class="form-select" id="domain_type" name="domain_type">
-                                            <?php
-                                            $types = ['NATIVE' => 'Native', 'MASTER' => 'Master', 'SLAVE' => 'Slave'];
-                                            foreach ($types as $value => $label):
-                                            ?>
-                                                <option value="<?php echo $value; ?>" 
-                                                        <?php echo $domainInfo['type'] == $value ? 'selected' : ''; ?>>
-                                                    <?php echo $label; ?>
-                                                </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                </div>
+                                <!-- Domain Type UI removed; system operates in Native mode -->
                             </div>
 
                             <div class="mb-3">
@@ -255,7 +241,7 @@ $pageTitle = 'Edit Domain' . ($domainInfo ? ' - ' . $domainInfo['name'] : '');
                             <?php endif; ?>
 
                             <div class="d-flex justify-content-between">
-                                <a href="?page=zones" class="btn btn-secondary">
+                                <a href="?page=zone_manage" class="btn btn-secondary">
                                     <i class="bi bi-arrow-left me-1"></i>
                                     Back to Zones
                                 </a>

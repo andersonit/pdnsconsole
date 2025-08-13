@@ -72,7 +72,13 @@ if ($domainInfo) {
 $zoneType = $domainInfo['zone_type'] ?? 'forward';
 
 // Get supported record types filtered by zone type
-$supportedTypes = $records->getSupportedRecordTypes($zoneType);
+$supportedTypes = array_filter(
+    $records->getSupportedRecordTypes($zoneType),
+    function ($info, $type) {
+        return !in_array($type, ['NS', 'SOA'], true);
+    },
+    ARRAY_FILTER_USE_BOTH
+);
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $recordInfo) {
@@ -258,6 +264,37 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                                     </div>
                                 </div>
 
+                                <!-- TXT Assist for SPF/DKIM/DMARC -->
+                                <div class="mb-3" id="txtAssist" style="display:none;">
+                                    <div class="border rounded p-2">
+                                        <div class="d-flex align-items-center mb-2"><i class="bi bi-magic me-2"></i><strong>TXT Assist</strong><span class="text-muted ms-2 small">Build SPF, DMARC, or DKIM values</span></div>
+                                        <div class="row g-2 align-items-end">
+                                            <div class="col-md-3">
+                                                <label class="form-label small">Preset</label>
+                                                <select class="form-select form-select-sm" id="txtPreset">
+                                                    <option value="">Choose...</option>
+                                                    <option value="spf_basic">SPF: Allow MX, reject others</option>
+                                                    <option value="spf_google">SPF: Google Workspace</option>
+                                                    <option value="dmarc_quarantine">DMARC: quarantine (rua to postmaster)</option>
+                                                    <option value="dmarc_reject">DMARC: reject (rua to postmaster)</option>
+                                                    <option value="dkim_placeholder">DKIM: placeholder (set selector & key)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3" id="dkimSelectorWrap" style="display:none;">
+                                                <label class="form-label small">DKIM Selector</label>
+                                                <input type="text" class="form-control form-control-sm" id="dkimSelector" placeholder="selector" />
+                                            </div>
+                                            <div class="col-md-3" id="dkimKeyWrap" style="display:none;">
+                                                <label class="form-label small">DKIM Public Key (p=)</label>
+                                                <input type="text" class="form-control form-control-sm" id="dkimKey" placeholder="base64 public key" />
+                                            </div>
+                                            <div class="col-md-3">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" id="btnApplyPreset">Apply</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
@@ -310,7 +347,7 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                                 <div class="d-flex justify-content-between">
                                     <a href="?page=records&domain_id=<?php echo $domainId; ?>" class="btn btn-secondary">
                                         <i class="bi bi-arrow-left me-1"></i>
-                                        Cancel
+                                        Back to Records
                                     </a>
                                     <div>
                                         <button type="button" class="btn btn-outline-danger me-2" 
@@ -326,44 +363,6 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
                                 </div>
                             </form>
                         <?php endif; ?>
-                    </div>
-                </div>
-
-                <!-- Record Information -->
-                <div class="card mt-4 static-card">
-                    <div class="card-header">
-                        <h6 class="card-title mb-0">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Record Information
-                        </h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-4">Record ID:</dt>
-                                    <dd class="col-sm-8"><?php echo $recordInfo['id']; ?></dd>
-                                    
-                                    <dt class="col-sm-4">Domain:</dt>
-                                    <dd class="col-sm-8"><?php echo htmlspecialchars($recordInfo['domain_name']); ?></dd>
-                                    
-                                    <dt class="col-sm-4">Type:</dt>
-                                    <dd class="col-sm-8">
-                                        <span class="badge bg-secondary">
-                                            <?php echo htmlspecialchars($recordInfo['type']); ?>
-                                        </span>
-                                    </dd>
-                                </dl>
-                            </div>
-                            <div class="col-md-6">
-                                <dl class="row mb-0">
-                                    <dt class="col-sm-4">Status:</dt>
-                                    <dd class="col-sm-8">
-                                        <span class="badge bg-success">Active</span>
-                                    </dd>
-                                </dl>
-                            </div>
-                        </div>
                     </div>
                 </div>
             <?php endif; ?>
@@ -396,6 +395,7 @@ $pageTitle = 'Edit DNS Record' . ($domainInfo ? ' - ' . $domainInfo['name'] : ''
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <form method="POST" action="?page=records&domain_id=<?php echo $domainId; ?>&action=delete" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(csrf_token()); ?>">
                     <input type="hidden" name="record_id" id="deleteRecordId">
                     <button type="submit" class="btn btn-danger">
                         <i class="bi bi-trash me-1"></i>
@@ -437,6 +437,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 priorityInput.parentElement.style.display = 'none';
                 priorityInput.required = false;
             }
+
+            // TXT Assist visibility
+            document.getElementById('txtAssist').style.display = (type === 'TXT') ? 'block' : 'none';
         }
     }
     
@@ -445,6 +448,32 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize fields on page load
     updateFormFields();
+
+    // TXT Assist presets
+    const txtPreset = document.getElementById('txtPreset');
+    const btnApplyPreset = document.getElementById('btnApplyPreset');
+    const dkimSelWrap = document.getElementById('dkimSelectorWrap');
+    const dkimKeyWrap = document.getElementById('dkimKeyWrap');
+    const dkimSelector = document.getElementById('dkimSelector');
+    const dkimKey = document.getElementById('dkimKey');
+    txtPreset?.addEventListener('change', ()=>{
+        const v = txtPreset.value;
+        dkimSelWrap.style.display = v.startsWith('dkim_') ? 'block' : 'none';
+        dkimKeyWrap.style.display = v.startsWith('dkim_') ? 'block' : 'none';
+    });
+    btnApplyPreset?.addEventListener('click', ()=>{
+        const v = txtPreset.value; if (!v) return;
+        const domain = <?php echo json_encode($domainInfo['name'] ?? ($recordInfo['domain_name'] ?? '')); ?>;
+        if (v === 'spf_basic') contentInput.value = 'v=spf1 mx -all';
+        else if (v === 'spf_google') contentInput.value = 'v=spf1 include:_spf.google.com ~all';
+        else if (v === 'dmarc_quarantine') { contentInput.value = 'v=DMARC1; p=quarantine; rua=mailto:postmaster@'+domain; document.getElementById('record_name').value = '_dmarc'; }
+        else if (v === 'dmarc_reject') { contentInput.value = 'v=DMARC1; p=reject; rua=mailto:postmaster@'+domain; document.getElementById('record_name').value = '_dmarc'; }
+        else if (v === 'dkim_placeholder') {
+            const sel = dkimSelector.value.trim()||'default'; const key = dkimKey.value.trim()||'YOUR_PUBLIC_KEY_HERE';
+            document.getElementById('record_name').value = sel+'._domainkey';
+            contentInput.value = 'v=DKIM1; k=rsa; p='+key;
+        }
+    });
     
     // Form validation
     document.getElementById('editRecordForm').addEventListener('submit', function(e) {
@@ -498,10 +527,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 pass = regex.test(contentForValidation);
             }
             if (!pass) {
-                console.warn('Record validation failed', {recordType, pattern: anchored, original: content, normalized: contentForValidation});
-                e.preventDefault();
-                alert(`Invalid content format for ${recordType} record. Please check the example format.`);
-                return;
+                console.warn('Record validation failed (client-side)', {recordType, pattern: anchored, original: content, normalized: contentForValidation});
+                // Let server-side validation decide; do not block submission here.
+                // e.preventDefault();
+                // alert(`Invalid content format for ${recordType} record. Please check the example format.`);
+                // return;
             }
         }
     });

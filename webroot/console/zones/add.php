@@ -69,7 +69,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($error)) {
     $zoneType = $_POST['zone_type'] ?? 'forward';
     $domainName = trim($_POST['domain_name'] ?? '');
     $subnet = trim($_POST['subnet'] ?? '');
-    $domainType = $_POST['domain_type'] ?? 'NATIVE';
+    // Force Native mode for PDNS domains
+    $domainType = 'NATIVE';
     $tenantId = intval($_POST['tenant_id'] ?? $selectedTenantId);
     
     try {
@@ -257,10 +258,10 @@ $pageTitle = 'Add DNS Zone';
                                 </div>
                             </div>
 
-                            <!-- Forward Zone Fields -->
+                <!-- Forward Zone Fields -->
                             <div id="forward-fields" class="zone-fields">
                                 <div class="row">
-                                    <div class="col-md-8">
+                    <div class="col-md-12">
                                         <div class="mb-3">
                                             <label for="domain_name" class="form-label">
                                                 Zone Name <span class="text-danger">*</span>
@@ -274,22 +275,6 @@ $pageTitle = 'Add DNS Zone';
                                             <div class="form-text">
                                                 Enter the zone name without protocol (e.g., example.com, subdomain.example.com)
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label for="domain_type" class="form-label">Zone Type</label>
-                                            <select class="form-select" id="domain_type" name="domain_type">
-                                                <?php
-                                                $types = ['NATIVE' => 'Native', 'MASTER' => 'Master', 'SLAVE' => 'Slave'];
-                                                $selectedType = $_POST['domain_type'] ?? 'NATIVE';
-                                                foreach ($types as $value => $label):
-                                                ?>
-                                                    <option value="<?php echo $value; ?>" <?php echo $selectedType == $value ? 'selected' : ''; ?>>
-                                                        <?php echo $label; ?>
-                                                    </option>
-                                                <?php endforeach; ?>
-                                            </select>
                                         </div>
                                     </div>
                                 </div>

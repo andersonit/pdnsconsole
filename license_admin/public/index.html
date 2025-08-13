@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PDNS Console – Self‑Hosted PowerDNS Web Admin</title>
+    <meta name="description" content="PDNS Console is a modern, self-hosted web interface for PowerDNS with MySQL/MariaDB backend. DNSSEC, Dynamic DNS, multi-tenant, and more.">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+      :root {
+        --pc-primary: #0d6efd; /* Bootstrap primary blue */
+        --pc-dark: #0b2a45;
+        --pc-mid: #1e3a5f;
+        --pc-light: #f3f6f9;
+      }
+      .navbar-brand {
+        font-weight: 700;
+        letter-spacing: 0.2px;
+      }
+      .hero {
+        background: linear-gradient(135deg, var(--pc-mid), var(--pc-primary));
+        color: #fff;
+        padding: 80px 0 60px;
+      }
+      .hero .lead { color: rgba(255,255,255,0.9); }
+      .hero .stat {
+        background: rgba(255,255,255,0.08);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: .75rem;
+      }
+      .section-muted { background: var(--pc-light); }
+      .feature-icon {
+        width: 44px; height: 44px; border-radius: .5rem;
+        display: inline-flex; align-items: center; justify-content: center;
+        background: #e7f1ff; color: var(--pc-primary);
+      }
+      .card-pricing .price { font-size: 2.5rem; font-weight: 700; }
+      .badge-soft {
+        background: rgba(13,110,253,.1);
+        color: var(--pc-primary);
+      }
+      .footer { color: #7a8595; }
+      .check li { margin-bottom: .5rem; }
+      .check i { color: #198754; }
+    </style>
+  </head>
+  <body class="bg-white">
+    <!-- Nav -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom sticky-top">
+      <div class="container py-2">
+        <a class="navbar-brand" href="#">
+          <i class="bi bi-shield-check me-2 text-primary"></i>PDNS Console
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topnav" aria-controls="topnav" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="topnav">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <li class="nav-item"><a class="nav-link" href="#features">Features</a></li>
+            <li class="nav-item"><a class="nav-link" href="#how">How it works</a></li>
+            <li class="nav-item"><a class="nav-link" href="#pricing">Pricing</a></li>
+            <li class="nav-item"><a class="nav-link" href="#faq">FAQ</a></li>
+          </ul>
+          <div class="d-flex align-items-center gap-2">
+            <a class="btn btn-outline-secondary btn-sm" href="https://github.com/andersonit/pdnsconsole" target="_blank" rel="noopener">
+              <i class="bi bi-github"></i> GitHub
+            </a>
+            <a class="btn btn-primary btn-sm" href="#" title="Client Login (licensed users)">Client Login</a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <header class="hero">
+      <div class="container">
+        <div class="row align-items-center gy-4">
+          <div class="col-lg-7">
+            <h1 class="display-5 fw-bold mb-3">Self‑Hosted PowerDNS Web Console</h1>
+            <p class="lead mb-4">A modern, multi‑tenant UI for PowerDNS with MySQL/MariaDB backend. DNSSEC, Dynamic DNS, forward/reverse zones, advanced validation, and strong security built‑in.</p>
+            <div class="d-flex gap-2 flex-wrap">
+              <a href="https://github.com/andersonit/pdnsconsole" class="btn btn-light btn-lg"><i class="bi bi-download me-2"></i>Download Free</a>
+              <a href="#purchase" class="btn btn-outline-light btn-lg"><i class="bi bi-cart3 me-2"></i>Purchase License ($50)</a>
+            </div>
+            <div class="d-flex gap-3 mt-4 flex-wrap">
+              <span class="badge bg-success">Free up to 5 zones</span>
+              <span class="badge bg-info text-dark">Native mode (cluster‑friendly)</span>
+              <span class="badge bg-light text-dark">ddclient compatible</span>
+            </div>
+          </div>
+          <div class="col-lg-5">
+            <div class="p-4 stat">
+              <div class="row g-3">
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="fs-2 fw-bold">DNSSEC</div>
+                    <div class="small text-white-50">Keys & Rollover</div>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="fs-2 fw-bold">DDNS</div>
+                    <div class="small text-white-50">A/AAAA updates</div>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="fs-2 fw-bold">TXT+</div>
+                    <div class="small text-white-50">SPF/DKIM/DMARC</div>
+                  </div>
+                </div>
+                <div class="col-6">
+                  <div class="border rounded p-3 text-center">
+                    <div class="fs-2 fw-bold">2FA</div>
+                    <div class="small text-white-50">TOTP + CAPTCHA</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Features -->
+    <section id="features" class="py-5 section-muted">
+      <div class="container">
+        <div class="text-center mb-4">
+          <span class="badge rounded-pill badge-soft">Key Features</span>
+          <h2 class="mt-2">Everything you need to run DNS with confidence</h2>
+          <p class="text-secondary">Purpose‑built for PowerDNS gmysql deployments in Native mode.</p>
+        </div>
+        <div class="row g-4">
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-diagram-3"></i></div>
+              <h5>Multi‑tenant & RBAC</h5>
+              <p class="text-secondary">Tenant isolation with Super Admin and Tenant Admin roles; audit logging for critical actions.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-record-circle"></i></div>
+              <h5>Forward & Reverse Zones</h5>
+              <p class="text-secondary">Zone‑aware UI including PTR in reverse zones. NS/SOA managed automatically.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-shield-lock"></i></div>
+              <h5>DNSSEC Made Simple</h5>
+              <p class="text-secondary">Enable/disable, key generation, safe rollover (add/immediate/timed), DS assistance, registrar verification.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-lightning-charge"></i></div>
+              <h5>Dynamic DNS API</h5>
+              <p class="text-secondary">ddclient‑compatible token auth for A/AAAA updates with practical rate limiting.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-filetype-csv"></i></div>
+              <h5>CSV Import/Export</h5>
+              <p class="text-secondary">Bulk operations with validation (NS/SOA excluded); clean conflict checks and normalization.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-shield-check"></i></div>
+              <h5>Security First</h5>
+              <p class="text-secondary">2FA (TOTP), optional Turnstile/reCAPTCHA, CSRF protection, DB‑backed sessions, encryption for secrets.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-chat-left-text"></i></div>
+              <h5>Smart TXT Validation</h5>
+              <p class="text-secondary">Semantic checks for SPF/DKIM/DMARC with normalization and safe chunking for long values.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-palette2"></i></div>
+              <h5>White Label Branding & Themes</h5>
+              <p class="text-secondary">Clean Bootstrap UI with 25+ Bootswatch themes and white label options.</p>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-4">
+            <div class="h-100 p-4 bg-white rounded-3 border">
+              <div class="feature-icon mb-3"><i class="bi bi-card-text"></i></div>
+              <h5>Record & Zone Comments</h5>
+              <p class="text-secondary">Per‑record comments and a zone‑level info comment for operational notes and change context.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section id="how" class="py-5">
+      <div class="container">
+        <div class="row align-items-center g-4">
+          <div class="col-lg-6">
+            <h2>Designed for PowerDNS with MySQL/MariaDB</h2>
+            <p class="text-secondary">PDNS Console is a self‑hosted admin interface for PowerDNS using the gmysql backend. It operates in <strong>Native mode only</strong> (no MASTER/SLAVE UI), which keeps your setup simple and cluster‑friendly.</p>
+            <ul class="list-unstyled check">
+              <li><i class="bi bi-check2 me-2"></i>Point the UI at the same PowerDNS database your nameservers use.</li>
+              <li><i class="bi bi-check2 me-2"></i>Run multiple web nodes behind a load balancer – sessions are database‑backed.</li>
+              <li><i class="bi bi-check2 me-2"></i>Forward and reverse zones with PTR support and zone‑aware filtering.</li>
+              <li><i class="bi bi-check2 me-2"></i>DNSSEC lifecycle management and DS publication assistance.</li>
+              <li><i class="bi bi-check2 me-2"></i>Dynamic DNS endpoint for A/AAAA updates (ddclient compatible).</li>
+            </ul>
+          </div>
+          <div class="col-lg-6">
+            <div class="p-4 bg-white border rounded-3 shadow-sm">
+              <div class="d-flex align-items-center mb-3">
+                <div class="feature-icon me-3"><i class="bi bi-hdd-network"></i></div>
+                <div>
+                  <div class="fw-semibold">Native Mode Architecture</div>
+                  <div class="text-secondary small">Authoritative servers share one database. PDNS Console manages zones/records directly in that DB.</div>
+                </div>
+              </div>
+              <div class="d-flex align-items-center mb-3">
+                <div class="feature-icon me-3"><i class="bi bi-gear"></i></div>
+                <div>
+                  <div class="fw-semibold">Safe by Default</div>
+                  <div class="text-secondary small">NS/SOA handled automatically; conflict checks; server‑side validation is authoritative.</div>
+                </div>
+              </div>
+              <div class="d-flex align-items-center">
+                <div class="feature-icon me-3"><i class="bi bi-cloud-check"></i></div>
+                <div>
+                  <div class="fw-semibold">No External Dependencies</div>
+                  <div class="text-secondary small">Offline license validation; no phone‑home. Runs wherever you run PowerDNS.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pricing -->
+    <section id="pricing" class="py-5 section-muted">
+      <div class="container">
+        <div class="text-center mb-4">
+          <span class="badge rounded-pill badge-soft">Simple Pricing</span>
+          <h2 class="mt-2">Start free. Unlock unlimited for $50.</h2>
+          <p class="text-secondary">Fully functional for up to 5 zones. Upgrade anytime with a one‑time commercial license.</p>
+        </div>
+        <div class="row g-4 justify-content-center">
+          <div class="col-md-6 col-lg-5">
+            <div class="card card-pricing h-100 shadow-sm">
+              <div class="card-body p-4">
+                <h5 class="card-title">Free</h5>
+                <div class="price mb-2">$0</div>
+                <p class="text-secondary">Manage up to 5 DNS zones. All core features included.</p>
+                <ul class="list-unstyled check mb-4">
+                  <li><i class="bi bi-check2 me-2"></i>Forward & reverse zones</li>
+                  <li><i class="bi bi-check2 me-2"></i>DNSSEC lifecycle</li>
+                  <li><i class="bi bi-check2 me-2"></i>Dynamic DNS (ddclient)</li>
+                  <li><i class="bi bi-check2 me-2"></i>TXT SPF/DKIM/DMARC checks</li>
+                  <li><i class="bi bi-check2 me-2"></i>2FA, CAPTCHA, CSRF, audit</li>
+                </ul>
+                <a href="https://github.com/andersonit/pdnsconsole" class="btn btn-outline-primary w-100">Download Free</a>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-6 col-lg-5">
+            <div class="card card-pricing h-100 border-primary shadow-sm">
+              <div class="card-body p-4">
+                <h5 class="card-title">Commercial</h5>
+                <div class="price mb-2">$50</div>
+                <p class="text-secondary">Unlimited domains. Priority support options available.</p>
+                <ul class="list-unstyled check mb-4">
+                  <li><i class="bi bi-check2 me-2"></i>All Free features</li>
+                  <li><i class="bi bi-check2 me-2"></i>Unlimited zones</li>
+                  <li><i class="bi bi-check2 me-2"></i>Multi‑server (shared DB)</li>
+                </ul>
+                <a id="purchase" href="#" class="btn btn-primary w-100"><i class="bi bi-cart3 me-2"></i>Purchase License</a>
+                <div class="form-text mt-2">Placeholder link – purchase portal coming soon.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="py-5">
+      <div class="container">
+        <div class="row g-4">
+          <div class="col-lg-6">
+            <h3>Frequently Asked Questions</h3>
+            <div class="mt-3">
+              <h6>What platforms are supported?</h6>
+              <p class="text-secondary">Linux servers running PHP 8+, MySQL/MariaDB, and PowerDNS with the gmysql backend.</p>
+            </div>
+            <div class="mt-3">
+              <h6>Does it require the PowerDNS API?</h6>
+              <p class="text-secondary">No. PDNS Console works directly with the PowerDNS database (gmysql) in Native mode.</p>
+            </div>
+            <div class="mt-3">
+              <h6>How is licensing enforced?</h6>
+              <p class="text-secondary">A local, offline key validates free vs. commercial limits. Free tier manages up to 5 zones.</p>
+            </div>
+            <div class="mt-3">
+              <h6>Is DNSSEC fully supported?</h6>
+              <p class="text-secondary">Yes. You can enable DNSSEC, generate keys, perform safe rollovers, and get DS assistance.</p>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="p-4 bg-light border rounded-3 h-100">
+              <h5 class="mb-3">Quick Start</h5>
+              <ol class="text-secondary mb-4">
+                <li>Install PowerDNS with MySQL/MariaDB backend (gmysql) in Native mode.</li>
+                <li>Import the provided schema and configure database credentials.</li>
+                <li>Create your super admin user via CLI, then log in to the UI.</li>
+              </ol>
+              <a href="https://github.com/andersonit/pdnsconsole" class="btn btn-outline-secondary"><i class="bi bi-book me-2"></i>Read the README</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="border-top py-4 footer">
+      <div class="container d-flex flex-wrap gap-3 justify-content-between align-items-center">
+        <div>&copy; <span id="year"></span> PDNS Console. Business Source License (BSL). Free up to 5 zones.</div>
+        <div class="small">
+          <a href="https://github.com/andersonit/pdnsconsole/blob/main/LICENSE.md" class="text-decoration-none">License</a>
+          <span class="text-secondary mx-2">|</span>
+          <a href="https://github.com/andersonit/pdnsconsole" class="text-decoration-none">Source</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+  </body>
+  </html>

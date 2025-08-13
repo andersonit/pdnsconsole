@@ -400,7 +400,6 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                 <th><?php renderZoneHeader('Zone Name','name',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <th><?php renderZoneHeader('Zone Type','zone_type',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <th><?php renderZoneHeader('Records','record_count',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
-                                <th><?php renderZoneHeader('Type','type',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <?php if ($isSuperAdmin || count($userTenants) > 1): ?>
                                 <th><?php renderZoneHeader('Tenant','tenant_name',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
                                 <?php endif; ?>
@@ -435,15 +434,10 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                             <?php echo number_format($domainRow['record_count']); ?> records
                                         </span>
                                     </td>
-                                    <td>
-                                        <span class="badge bg-primary">
-                                            <?php echo htmlspecialchars($domainRow['type']); ?>
-                                        </span>
-                                    </td>
                                     <?php if ($isSuperAdmin || count($userTenants) > 1): ?>
                                     <td>
                                         <?php if ($domainRow['tenant_name']): ?>
-                                            <span class="badge bg-dark text-light">
+                                            <span class="badge bg-primary text-light">
                                                 <?php echo htmlspecialchars($domainRow['tenant_name']); ?>
                                             </span>
                                         <?php else: ?>
@@ -493,7 +487,7 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                                                         <td class="text-end">
                                         <div class="btn-group btn-group-sm">
                                             <a href="?page=records&domain_id=<?php echo $domainRow['id']; ?>" 
-                                               class="btn btn-outline-primary" title="Manage Records">
+                                               class="btn btn-outline-dark" title="Manage Records">
                                                 <i class="bi bi-list-ul"></i>
                                                 Records
                                             </a>
@@ -508,8 +502,9 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                                 DDNS
                                             </a>
                                             <a href="?page=zone_edit&id=<?php echo $domainRow['id']; ?>" 
-                                               class="btn btn-outline-secondary" title="Edit Zone">
+                                               class="btn btn-outline-warning" title="Edit Zone">
                                                 <i class="bi bi-pencil"></i>
+                                                Edit
                                             </a>
                                         </div>
                                     </td>

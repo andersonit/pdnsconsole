@@ -380,6 +380,23 @@ $pageTitle = 'Bulk Add DNS Records' . ($domainInfo ? ' - ' . $domainInfo['name']
                                 </button>
                             </div>
                         </div>
+                        <div class="row mt-2">
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="addTemplate('spf_basic')">
+                                    <i class="bi bi-shield-check me-1"></i>TXT: SPF Basic (mx -all)
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="addTemplate('spf_google')">
+                                    <i class="bi bi-google me-1"></i>TXT: SPF Google
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="addTemplate('dmarc_reject')">
+                                    <i class="bi bi-envelope-check me-1"></i>TXT: DMARC Reject
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             <?php endif; ?>
@@ -512,6 +529,15 @@ function addTemplate(templateType) {
             ['@', 'TXT', 'v=spf1 mx -all', 3600, 0],
             ['_dmarc', 'TXT', 'v=DMARC1; p=quarantine; rua=mailto:dmarc@<?php echo htmlspecialchars($domainInfo['name'] ?? 'example.com'); ?>', 3600, 0],
             ['google._domainkey', 'TXT', 'v=DKIM1; k=rsa; p=YOUR_PUBLIC_KEY_HERE', 3600, 0]
+        ],
+        spf_basic: [
+            ['@', 'TXT', 'v=spf1 mx -all', 3600, 0]
+        ],
+        spf_google: [
+            ['@', 'TXT', 'v=spf1 include:_spf.google.com ~all', 3600, 0]
+        ],
+        dmarc_reject: [
+            ['_dmarc', 'TXT', 'v=DMARC1; p=reject; rua=mailto:postmaster@<?php echo htmlspecialchars($domainInfo['name'] ?? 'example.com'); ?>', 3600, 0]
         ]
     };
     
