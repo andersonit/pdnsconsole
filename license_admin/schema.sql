@@ -4,6 +4,7 @@
 CREATE TABLE IF NOT EXISTS customers (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
   email VARCHAR(255) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(255) NOT NULL,
   organization VARCHAR(255) NULL,
   status ENUM('active','suspended') NOT NULL DEFAULT 'active',
@@ -68,5 +69,5 @@ CREATE TABLE IF NOT EXISTS license_events (
 -- Seed example plans
 INSERT INTO plans (code,name,domain_limit,price_cents,currency,interval_unit) VALUES
  ('FREE','Free Tier',5,0,'USD','once'),
- ('BUSUNL','Business Unlimited',0,19900,'USD','year')
+ ('BUSUNL','Business Unlimited',0,50,'USD','once')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
