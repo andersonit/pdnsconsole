@@ -52,6 +52,9 @@ nano config/config.php
 ### 3. Import Database Schema
 
 ```bash
+# Create the databse
+mysql -u root
+*** commands to create db *** 
 # Import the complete schema (PowerDNS + PDNS Console tables)
 mysql -u your_user -p your_database < db/complete-schema.sql
 ```

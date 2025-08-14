@@ -69,24 +69,6 @@ CREATE TABLE comments (
 CREATE INDEX comments_name_type_idx ON comments (name, type);
 CREATE INDEX comments_order_idx ON comments (domain_id, modified_at);
 
--- PDNS Console: Per-record single comment table (separate from native PowerDNS comments which we reserve for zone-level informational comment only)
-CREATE TABLE record_comments (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  record_id BIGINT NOT NULL,
-  domain_id INT NOT NULL,
-  user_id INT NULL,
-  username VARCHAR(100) NULL,
-  comment TEXT NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY unique_record (record_id),
-  INDEX idx_record_id (record_id),
-  INDEX idx_domain_record (domain_id, record_id),
-  CONSTRAINT fk_record_comments_record FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
-  CONSTRAINT fk_record_comments_domain FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-  CONSTRAINT fk_record_comments_user FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
 -- Domain metadata table - for domain-specific metadata
 CREATE TABLE domainmetadata (
   id                    INT AUTO_INCREMENT,
@@ -139,6 +121,25 @@ CREATE TABLE admin_users (
     INDEX idx_username (username),
     INDEX idx_email (email)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
+
+-- PDNS Console: Per-record single comment table (depends on records, domains, and admin_users)
+CREATE TABLE record_comments (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  record_id BIGINT NOT NULL,
+  domain_id INT NOT NULL,
+  user_id INT NULL,
+  username VARCHAR(100) NULL,
+  comment TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY unique_record (record_id),
+  INDEX idx_record_id (record_id),
+  INDEX idx_domain_record (domain_id, record_id),
+  INDEX idx_rc_user_id (user_id),
+  CONSTRAINT fk_record_comments_record FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
+  CONSTRAINT fk_record_comments_domain FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
+  CONSTRAINT fk_record_comments_user FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Tenant organizations
 CREATE TABLE tenants (
