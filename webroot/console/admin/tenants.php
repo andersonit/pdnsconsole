@@ -244,6 +244,11 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
 ?>
 
 <div class="container-fluid mt-4">
+    <?php include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/breadcrumbs.php';
+        renderBreadcrumb([
+            ['label' => $isSuperAdmin ? 'Tenant Management' : 'My Tenants']
+        ], true);
+    ?>
     <!-- Header -->
     <div class="row mb-4">
         <div class="col-12">
