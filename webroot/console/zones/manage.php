@@ -111,6 +111,10 @@ if ($isSuperAdmin) {
     }
 }
 
+// Global tenant existence check (direct users to create a tenant first if none exist)
+$tenantCountRow = $db->fetch("SELECT COUNT(*) AS c FROM tenants WHERE is_active = 1");
+$hasTenants = ((int)($tenantCountRow['c'] ?? 0)) > 0;
+
 // Get zones data
 $domains = [];
 $totalCount = 0;
@@ -236,22 +240,42 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                     <p class="text-muted mb-2">Manage DNS zones, records, DNSSEC, and Dynamic DNS</p>
                 </div>
                 <div class="btn-group">
-                    <a href="?page=zone_add" class="btn btn-primary">
-                        <i class="bi bi-plus-circle me-1"></i>
-                        Add Zone
-                    </a>
-                    <a href="?page=zone_bulk_add" class="btn btn-outline-primary">
-                        <i class="bi bi-layers me-1"></i>
-                        Bulk Add
-                    </a>
-                    <a href="?page=records_import" class="btn btn-outline-secondary">
-                        <i class="bi bi-upload me-1"></i>
-                        Import CSV
-                    </a>
+                    <?php if ($hasTenants): ?>
+                        <a href="?page=zone_add" class="btn btn-primary">
+                            <i class="bi bi-plus-circle me-1"></i>
+                            Add Zone
+                        </a>
+                        <a href="?page=zone_bulk_add" class="btn btn-outline-primary">
+                            <i class="bi bi-layers me-1"></i>
+                            Bulk Add
+                        </a>
+                        <a href="?page=records_import" class="btn btn-outline-secondary">
+                            <i class="bi bi-upload me-1"></i>
+                            Import CSV
+                        </a>
+                    <?php else: ?>
+                        <?php if ($isSuperAdmin): ?>
+                            <a href="?page=admin_tenants" class="btn btn-warning">
+                                <i class="bi bi-people me-1"></i>
+                                Create Tenant First
+                            </a>
+                        <?php endif; ?>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
+    <?php if (!$hasTenants): ?>
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <i class="bi bi-info-circle me-2"></i>
+            <div>
+                No tenants exist yet. <?php echo $isSuperAdmin ? 'Create a tenant to own zones and manage access.' : 'Please contact an administrator to create a tenant for your organization.'; ?>
+                <?php if ($isSuperAdmin): ?>
+                    <a href="?page=admin_tenants" class="alert-link ms-2">Go to Tenants</a>
+                <?php endif; ?>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <!-- Search and Filters -->
     <div class="card mb-4">
@@ -363,22 +387,37 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
         <div class="card-body p-0">
             <?php if (empty($domains)): ?>
                 <div class="text-center py-5">
-                    <i class="bi bi-globe display-4 text-muted mb-3"></i>
-                    <h5 class="text-muted">No zones found</h5>
-                    <p class="text-muted mb-4">
-                        <?php if (!empty($search) || !empty($zoneTypeFilter) || !empty($tenantFilter)): ?>
-                            No zones match your search criteria.
-                        <?php else: ?>
-                            Get started by adding your first zone.
+                    <?php if (!$hasTenants): ?>
+                        <i class="bi bi-people display-4 text-muted mb-3"></i>
+                        <h5 class="text-muted">No tenants found</h5>
+                        <p class="text-muted mb-4">
+                            Before adding zones, <?php echo $isSuperAdmin ? 'create a tenant (organization) to own them.' : 'ask an administrator to create a tenant for your organization.'; ?>
+                        </p>
+                        <?php if ($isSuperAdmin): ?>
+                            <div class="d-inline-flex gap-2">
+                                <a href="?page=admin_tenants" class="btn btn-warning">
+                                    <i class="bi bi-people me-1"></i>
+                                    Create Tenant
+                                </a>
+                            </div>
                         <?php endif; ?>
-                    </p>
-                    
-                    <div class="d-inline-flex gap-2">
-                        <a href="?page=zone_add" class="btn btn-primary">
-                            <i class="bi bi-plus-circle me-1"></i>
-                            Add Your First Zone
-                        </a>
-                    </div>
+                    <?php else: ?>
+                        <i class="bi bi-globe display-4 text-muted mb-3"></i>
+                        <h5 class="text-muted">No zones found</h5>
+                        <p class="text-muted mb-4">
+                            <?php if (!empty($search) || !empty($zoneTypeFilter) || !empty($tenantFilter)): ?>
+                                No zones match your search criteria.
+                            <?php else: ?>
+                                Get started by adding your first zone.
+                            <?php endif; ?>
+                        </p>
+                        <div class="d-inline-flex gap-2">
+                            <a href="?page=zone_add" class="btn btn-primary">
+                                <i class="bi bi-plus-circle me-1"></i>
+                                Add Your First Zone
+                            </a>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php else: ?>
                 <div class="table-responsive">

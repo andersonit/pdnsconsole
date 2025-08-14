@@ -420,7 +420,7 @@ $pageTitle = 'Add DNS Zone';
                                 <small class="text-muted">
                                     <i class="bi bi-info-circle me-1"></i>
                                     These values can be changed in 
-                                    <a href="?page=admin_settings">Global Settings</a>.
+                                    <a href="?page=admin_dns_settings">Global Settings</a>.
                                 </small>
                             </div>
                         <?php endif; ?>
