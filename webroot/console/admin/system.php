@@ -117,7 +117,7 @@ $appStats = [
     'total_records' => $db->fetch("SELECT COUNT(*) as count FROM records")['count'] ?? 0,
     'total_users' => $db->fetch("SELECT COUNT(*) as count FROM admin_users")['count'] ?? 0,
     'total_tenants' => $db->fetch("SELECT COUNT(*) as count FROM tenants")['count'] ?? 0,
-    'active_sessions' => $db->fetch("SELECT COUNT(*) as count FROM user_sessions WHERE last_accessed > DATE_SUB(NOW(), INTERVAL 1 HOUR)")['count'] ?? 0
+    'active_sessions' => $db->fetch("SELECT COUNT(*) as count FROM user_sessions WHERE last_activity > DATE_SUB(NOW(), INTERVAL 1 HOUR)")['count'] ?? 0
 ];
 
 // Helper function to format bytes

@@ -41,13 +41,13 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
     public function read($session_id): string {
         // Use database-side interval to avoid PHP/DB timezone drift issues
         $lifetime = (int)$this->maxLifetime;
-    // Schema columns: id (PK), last_activity (timestamp), session_data (TEXT)
-    $sql = "SELECT session_data FROM user_sessions WHERE id = ? AND last_activity > (NOW() - INTERVAL $lifetime SECOND)";
+        // Schema columns: id (PK), last_activity (timestamp), expires_at (timestamp), session_data (TEXT)
+        $sql = "SELECT session_data FROM user_sessions WHERE id = ? AND last_activity > (NOW() - INTERVAL $lifetime SECOND) AND expires_at > NOW()";
         $session = $this->db->fetch($sql, [$session_id]);
         if ($session) {
             $this->db->execute(
-        "UPDATE user_sessions SET last_activity = NOW() WHERE id = ?",
-                [$session_id]
+                "UPDATE user_sessions SET last_activity = NOW(), expires_at = NOW() + INTERVAL ? SECOND WHERE id = ?",
+                [$lifetime, $session_id]
             );
             $data = $session['session_data'] ?? '';
             return $data;
@@ -58,9 +58,10 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
     public function write($session_id, $session_data): bool {
         // If session data is empty, we still persist briefly so concurrent early writes can attach,
         // but we rely on cleanup to purge long-lived empty shells.
+        $lifetime = (int)$this->maxLifetime;
         $result = $this->db->execute(
-        "REPLACE INTO user_sessions (id, session_data, last_activity) VALUES (?, ?, NOW())",
-            [$session_id, $session_data]
+            "REPLACE INTO user_sessions (id, session_data, last_activity, expires_at) VALUES (?, ?, NOW(), NOW() + INTERVAL ? SECOND)",
+            [$session_id, $session_data, $lifetime]
         );
         // Opportunistic cleanup with slightly higher probability on write
         // Light probabilistic cleanup (reduced frequency)
@@ -82,7 +83,7 @@ class DatabaseSessionHandler implements SessionHandlerInterface {
         $lifetime = $maxlifetime ?: $this->maxLifetime;
         $expiredCutoff = date('Y-m-d H:i:s', time() - $lifetime);
         $expired = $this->db->execute(
-        "DELETE FROM user_sessions WHERE last_activity < ?",
+            "DELETE FROM user_sessions WHERE last_activity < ? OR expires_at < NOW()",
             [$expiredCutoff]
         );
         // Also clear stale empty sessions older than grace (defense in depth)

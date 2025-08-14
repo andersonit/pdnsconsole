@@ -54,13 +54,13 @@ try {
 
     // Delete expired sessions
     $deletedExpired = $db->execute(
-        "DELETE FROM user_sessions WHERE last_accessed < ?",
+        "DELETE FROM user_sessions WHERE last_activity < ? OR expires_at < NOW()",
         [$expiredCutoff]
     );
 
     // Delete empty / never-populated sessions older than grace period
     $deletedEmpty = $db->execute(
-        "DELETE FROM user_sessions WHERE (session_data IS NULL OR session_data = '') AND last_accessed < ?",
+        "DELETE FROM user_sessions WHERE (session_data IS NULL OR session_data = '') AND last_activity < ?",
         [$emptyCutoff]
     );
 
