@@ -239,6 +239,7 @@ CREATE TABLE user_sessions (
     user_id INT NULL,
     ip_address VARCHAR(45),
     user_agent TEXT,
+    session_data TEXT,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NOT NULL,
