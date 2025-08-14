@@ -2,6 +2,12 @@
 
 A comprehensive web-based administration interface for PowerDNS with MySQL/MariaDB backend, featuring multi-tenant architecture, role-based access control, DNSSEC, Dynamic DNS, and commercial licensing. PDNS Console follows a freemium model with full functionality for up to 5 domains. A reasonably priced commercial license is available at https://pdnsconsole.com.
 
+## *UNDER ACTIVE DEVELOPMENT*
+Please visit https://pdnsconsole.com/demo.php to test a fully functional demo.
+Please reach out with any input, feature requests or bugs.
+
+## **DOCUMENTATION IN PROGRESS**
+
 ## 🚀 Features
 
 - Multi-tenant architecture with tenant isolation
