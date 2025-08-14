@@ -23,6 +23,7 @@ require_once __DIR__ . '/../config/app.php';
 require_once __DIR__ . '/../webroot/classes/Database.php';
 require_once __DIR__ . '/../webroot/classes/Encryption.php';
 require_once __DIR__ . '/../webroot/classes/Settings.php';
+require_once __DIR__ . '/../webroot/classes/AuditLog.php';
 require_once __DIR__ . '/../webroot/classes/User.php';
 
 echo "PDNS Console - Create Super Admin User\n";
