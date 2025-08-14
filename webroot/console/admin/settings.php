@@ -252,6 +252,17 @@ $recaptcha_secret_key = $settings->get('recaptcha_secret_key', '');
 $turnstile_site_key = $settings->get('turnstile_site_key', '');
 $turnstile_secret_key = $settings->get('turnstile_secret_key', '');
 
+// Demo masking: if on a demo host and restrictions enabled, hide CAPTCHA keys
+$hostNoPort = preg_replace('/:.*/', '', ($_SERVER['HTTP_HOST'] ?? ''));
+$isDemoHost = defined('DEMO_HOSTNAMES') && in_array($hostNoPort, DEMO_HOSTNAMES, true);
+$demoEnabled = defined('DEMO_RESTRICTIONS_ENABLED') ? DEMO_RESTRICTIONS_ENABLED : false;
+if ($isDemoHost && $demoEnabled) {
+    $recaptcha_site_key = $recaptcha_site_key ? '[hidden on demo]' : '';
+    $recaptcha_secret_key = $recaptcha_secret_key ? '[hidden on demo]' : '';
+    $turnstile_site_key = $turnstile_site_key ? '[hidden on demo]' : '';
+    $turnstile_secret_key = $turnstile_secret_key ? '[hidden on demo]' : '';
+}
+
 // Decrypt API key for masked display (never show full key)
 $pdnsApiKeyMasked = '';
 $pdnsApiKeyPlain = '';
@@ -429,21 +440,21 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                                 <option value="recaptcha" <?php if ($captcha_provider === 'recaptcha') echo 'selected'; ?>>Google reCAPTCHA</option>
                             </select>
                         </div>
-                        <div class="mb-3" id="recaptcha_keys" style="display: <?php echo ($captcha_provider === 'recaptcha') ? 'block' : 'none'; ?>;">
+            <div class="mb-3" id="recaptcha_keys" style="display: <?php echo ($captcha_provider === 'recaptcha') ? 'block' : 'none'; ?>;">
                             <label class="form-label">reCAPTCHA Site Key</label>
                             <input type="text" class="form-control" name="recaptcha_site_key" value="<?php echo htmlspecialchars($recaptcha_site_key); ?>">
                             <label class="form-label mt-2">reCAPTCHA Secret Key</label>
                             <div class="input-group">
-                                <input type="password" class="form-control" name="recaptcha_secret_key" id="recaptcha_secret_key" value="<?php echo htmlspecialchars($recaptcha_secret_key); ?>">
+                <input type="password" class="form-control" name="recaptcha_secret_key" id="recaptcha_secret_key" value="<?php echo htmlspecialchars($recaptcha_secret_key); ?>">
                                 <button class="btn btn-outline-secondary" type="button" id="toggleRecaptchaSecret"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
-                        <div class="mb-3" id="turnstile_keys" style="display: <?php echo ($captcha_provider === 'turnstile') ? 'block' : 'none'; ?>;">
+            <div class="mb-3" id="turnstile_keys" style="display: <?php echo ($captcha_provider === 'turnstile') ? 'block' : 'none'; ?>;">
                             <label class="form-label">Turnstile Site Key</label>
                             <input type="text" class="form-control" name="turnstile_site_key" value="<?php echo htmlspecialchars($turnstile_site_key); ?>">
                             <label class="form-label mt-2">Turnstile Secret Key</label>
                             <div class="input-group">
-                                <input type="password" class="form-control" name="turnstile_secret_key" id="turnstile_secret_key" value="<?php echo htmlspecialchars($turnstile_secret_key); ?>">
+                <input type="password" class="form-control" name="turnstile_secret_key" id="turnstile_secret_key" value="<?php echo htmlspecialchars($turnstile_secret_key); ?>">
                                 <button class="btn btn-outline-secondary" type="button" id="toggleTurnstileSecret"><i class="bi bi-eye"></i></button>
                             </div>
                         </div>
