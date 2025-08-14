@@ -119,6 +119,38 @@ body.dark-mode .form-select:focus {
     color: #fff;
 }
 
+/* Dark mode placeholder visibility */
+/* Standard */
+body.dark-mode .form-control::placeholder,
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder {
+    color: #9aa0a6; /* mid-gray for contrast on #333 */
+    opacity: 1;     /* ensure full opacity */
+}
+/* Disabled inputs keep readable placeholders */
+body.dark-mode .form-control:disabled::placeholder,
+body.dark-mode input:disabled::placeholder,
+body.dark-mode textarea:disabled::placeholder {
+    color: #8a949e;
+    opacity: 1;
+}
+/* WebKit */
+body.dark-mode .form-control::-webkit-input-placeholder,
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder { color: #9aa0a6; }
+/* Firefox */
+body.dark-mode .form-control::-moz-placeholder,
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder { color: #9aa0a6; opacity: 1; }
+/* IE 10-11 */
+body.dark-mode .form-control:-ms-input-placeholder,
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder { color: #9aa0a6; }
+/* Legacy Edge */
+body.dark-mode .form-control::-ms-input-placeholder,
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder { color: #9aa0a6; }
+
 /* Dark mode navbar */
 body.dark-mode .navbar-light {
     background-color: #333 !important;
