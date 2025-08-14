@@ -92,25 +92,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $domainInfo) {
             $tenantId
         );
         
-        // Log the action
-        $db = Database::getInstance();
-                $db->execute(
-            "INSERT INTO audit_log (user_id, action, table_name, record_id, new_values, ip_address) 
-             VALUES (?, 'record_create', 'records', ?, ?, ?)",
-            [
-                $currentUser['id'],
-                $recordId,
-                json_encode([
-                    'domain_id' => $domainId,
-                    'name' => $recordName,
-                    'type' => $recordType,
-                    'content' => $recordContent,
-                    'ttl' => $recordTTL,
-                    'prio' => $recordPrio
-                ]),
-                $_SERVER['REMOTE_ADDR'] ?? ''
-            ]
-        );
+        // Log the action (uses trusted-proxy aware IP resolution)
+        (new AuditLog())->logRecordCreated($currentUser['id'], $recordId, [
+            'domain_id' => $domainId,
+            'name' => $recordName,
+            'type' => $recordType,
+            'content' => $recordContent,
+            'ttl' => $recordTTL,
+            'prio' => $recordPrio
+        ]);
         
         $success = 'DNS record created successfully!';
         

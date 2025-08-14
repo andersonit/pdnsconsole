@@ -72,25 +72,15 @@ try {
     // Delete the record
     $records->deleteRecord($recordId, $tenantId);
     
-    // Log the deletion
-    $db = Database::getInstance();
-    $db->execute(
-        "INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, ip_address) 
-         VALUES (?, 'record_delete', 'records', ?, ?, ?)",
-        [
-            $currentUser['id'],
-            $recordId,
-            json_encode([
-                'domain_id' => $recordInfo['domain_id'],
-                'name' => $recordInfo['name'],
-                'type' => $recordInfo['type'],
-                'content' => $recordInfo['content'],
-                'ttl' => $recordInfo['ttl'],
-                'prio' => $recordInfo['prio']
-            ]),
-            $_SERVER['REMOTE_ADDR'] ?? ''
-        ]
-    );
+    // Log the deletion (uses trusted-proxy aware IP resolution)
+    (new AuditLog())->logRecordDeleted($currentUser['id'], $recordId, [
+        'domain_id' => $recordInfo['domain_id'],
+        'name' => $recordInfo['name'],
+        'type' => $recordInfo['type'],
+        'content' => $recordInfo['content'],
+        'ttl' => $recordInfo['ttl'],
+        'prio' => $recordInfo['prio']
+    ]);
     
     $_SESSION['success'] = 'DNS record deleted successfully.';
     

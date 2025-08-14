@@ -111,25 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $recordInfo) {
             $tenantId
         );
         
-        // Log the action
-        $db = Database::getInstance();
-        $db->execute(
-            "INSERT INTO audit_log (user_id, action, table_name, record_id, old_values, new_values, ip_address) 
-             VALUES (?, 'record_update', 'records', ?, ?, ?, ?)",
-            [
-                $currentUser['id'],
-                $recordId,
-                json_encode($oldValues),
-                json_encode([
-                    'name' => $recordName,
-                    'type' => $recordType,
-                    'content' => $recordContent,
-                    'ttl' => $recordTTL,
-                    'prio' => $recordPrio
-                ]),
-                $_SERVER['REMOTE_ADDR'] ?? ''
-            ]
-        );
+        // Log the action (uses trusted-proxy aware IP resolution)
+        (new AuditLog())->logRecordUpdated($currentUser['id'], $recordId, $oldValues, [
+            'name' => $recordName,
+            'type' => $recordType,
+            'content' => $recordContent,
+            'ttl' => $recordTTL,
+            'prio' => $recordPrio
+        ]);
         
         $success = 'DNS record updated successfully!';
         

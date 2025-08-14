@@ -143,7 +143,7 @@ class AuditLog {
         $metadata = [
             'enabled' => (bool)$enabled,
             'previous' => (bool)$previouslyEnabled,
-            'ip' => $_SERVER['REMOTE_ADDR'] ?? null
+            'ip' => $this->getClientIP()
         ];
         return $this->logAction($userId, 'MAINTENANCE_TOGGLE', 'global_settings', null, ['enabled' => $previouslyEnabled ? '1' : '0'], ['enabled' => $enabled ? '1' : '0'], null, $metadata);
     }
@@ -152,14 +152,16 @@ class AuditLog {
      * Log CAPTCHA verification failure on login
      */
     public function logCaptchaFailure($ip, $provider, $reason = null, $usernameAttempt = null) {
+        // Always resolve current client IP to avoid proxy IP leakage
+        $resolvedIp = $this->getClientIP();
         $metadata = [
             'provider' => $provider,
             'reason' => $reason,
-            'ip' => $ip,
+            'ip' => $resolvedIp,
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown',
             'path' => $_SERVER['REQUEST_URI'] ?? ''
         ];
-        return $this->logAction(null, 'CAPTCHA_FAILED', null, null, null, null, $ip, $metadata);
+        return $this->logAction(null, 'CAPTCHA_FAILED', null, null, null, null, $resolvedIp, $metadata);
     }
 
     public function logPasswordChanged($userId, $targetUserId, $metadata = []) {
@@ -466,25 +468,101 @@ class AuditLog {
     }
 
     /**
-     * Get client IP address
+     * Get client IP address honoring trusted proxies (HAProxy/Nginx) safely.
+     * Uses TRUSTED_PROXIES env (comma-separated IP/CIDR) plus private/localhost defaults.
      */
     private function getClientIP() {
-        $ipKeys = ['HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_FORWARDED', 
-                   'HTTP_FORWARDED_FOR', 'HTTP_FORWARDED', 'REMOTE_ADDR'];
-        
-        foreach ($ipKeys as $key) {
-            if (array_key_exists($key, $_SERVER) === true) {
-                foreach (explode(',', $_SERVER[$key]) as $ip) {
-                    $ip = trim($ip);
-                    if (filter_var($ip, FILTER_VALIDATE_IP, 
-                        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) !== false) {
-                        return $ip;
-                    }
+        // CLI invocations
+        if (PHP_SAPI === 'cli' || defined('STDIN')) {
+            return 'CLI';
+        }
+
+        $server = $_SERVER;
+        $remote = $server['REMOTE_ADDR'] ?? '';
+        $trustedCidrs = $this->getTrustedProxies();
+
+        // Candidates from standard headers
+        $candidates = [];
+        if (!empty($server['HTTP_X_FORWARDED_FOR'])) {
+            foreach (explode(',', $server['HTTP_X_FORWARDED_FOR']) as $ip) {
+                $ip = trim($ip);
+                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    $candidates[] = $ip;
                 }
             }
         }
-        
-        return $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+        foreach (['HTTP_X_REAL_IP','HTTP_CF_CONNECTING_IP','HTTP_TRUE_CLIENT_IP','HTTP_CLIENT_IP'] as $key) {
+            if (!empty($server[$key]) && filter_var($server[$key], FILTER_VALIDATE_IP)) {
+                $candidates[] = $server[$key];
+            }
+        }
+
+        $remoteIsTrusted = $remote && $this->ipIsTrusted($remote, $trustedCidrs);
+
+        if ($remoteIsTrusted && $candidates) {
+            // Prefer first public, non-trusted hop from XFF chain
+            foreach ($candidates as $ip) {
+                if (!$this->ipIsTrusted($ip, $trustedCidrs) && !$this->isPrivateIp($ip)) {
+                    return $ip;
+                }
+            }
+            // Fallback to first candidate
+            return $candidates[0];
+        }
+
+        return $remote ?: '0.0.0.0';
+    }
+
+    private function isPrivateIp(string $ip): bool {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) return false;
+        $privCidrs = [
+            '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8',
+            '::1/128', 'fc00::/7', 'fe80::/10', '169.254.0.0/16', '100.64.0.0/10'
+        ];
+        foreach ($privCidrs as $cidr) {
+            if ($this->ipInCidr($ip, $cidr)) return true;
+        }
+        return false;
+    }
+
+    private function getTrustedProxies(): array {
+        $env = getenv('TRUSTED_PROXIES') ?: '';
+        $list = array_filter(array_map('trim', explode(',', $env)));
+        $defaults = ['127.0.0.1/32','::1/128','10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','100.64.0.0/10','169.254.0.0/16','fc00::/7','fe80::/10'];
+        return array_unique(array_merge($defaults, $list));
+    }
+
+    private function ipIsTrusted(string $ip, array $trustedCidrs): bool {
+        foreach ($trustedCidrs as $cidr) {
+            if ($this->ipInCidr($ip, $cidr)) return true;
+        }
+        return false;
+    }
+
+    private function ipInCidr(string $ip, string $cidr): bool {
+        if (strpos($cidr, '/') === false) return $ip === $cidr;
+        [$subnet, $mask] = explode('/', $cidr, 2);
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $ipLong = sprintf('%u', ip2long($ip));
+            $subLong = sprintf('%u', ip2long($subnet));
+            $mask = (int)$mask;
+            $maskLong = $mask === 0 ? 0 : (~0 << (32 - $mask)) & 0xFFFFFFFF;
+            return (($ipLong & $maskLong) === ($subLong & $maskLong));
+        }
+        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) && filter_var($subnet, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
+            $ipBin  = inet_pton($ip);
+            $subBin = inet_pton($subnet);
+            $mask = (int)$mask;
+            $bytes = intdiv($mask, 8);
+            $bits  = $mask % 8;
+            if ($bytes && substr($ipBin, 0, $bytes) !== substr($subBin, 0, $bytes)) return false;
+            if ($bits) {
+                $maskByte = chr((~0 << (8 - $bits)) & 0xFF);
+                return ((ord($ipBin[$bytes]) & ord($maskByte)) === (ord($subBin[$bytes]) & ord($maskByte)));
+            }
+            return true;
+        }
+        return false;
     }
 
     /**
