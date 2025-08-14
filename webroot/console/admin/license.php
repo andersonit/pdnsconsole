@@ -113,7 +113,7 @@ include $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
      </div>
      <small class="text-muted">The code contains no secrets; it is a deterministic fingerprint.</small>
     <div class="d-grid mt-3">
-        <a href="https://pdnsconsole.com/purchase.php" target="_blank" rel="noopener" class="btn btn-success">
+        <a href="https://pdnsconsole.com/purchase" target="_blank" rel="noopener" class="btn btn-success">
             <i class="bi bi-cart-check me-1"></i>Purchase Commercial License
         </a>
     </div>
