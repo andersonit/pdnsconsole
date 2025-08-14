@@ -184,7 +184,8 @@ CREATE TABLE domain_tenants (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_domain_tenant (domain_id, tenant_id)
+  UNIQUE KEY unique_domain_tenant (domain_id, tenant_id),
+  INDEX tenant_id (tenant_id)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
 -- Global settings (including white-labeling and DNS defaults)
@@ -215,7 +216,8 @@ CREATE TABLE dynamic_dns_tokens (
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     INDEX idx_token (token),
-    INDEX idx_domain_id (domain_id)
+  INDEX idx_domain_id (domain_id),
+  INDEX tenant_id (tenant_id)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
 -- Two-Factor Authentication (encrypted storage)
@@ -356,6 +358,7 @@ CREATE TABLE password_reset_tokens (
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+  INDEX user_id (user_id),
     INDEX idx_token (token),
     INDEX idx_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

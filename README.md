@@ -95,6 +95,7 @@ RewriteRule ^(.*)$ index.php [QSA,L]
 ```
 
 #### Nginx
+Adjust php version if necessary
 
 ```nginx
 location / {
@@ -102,7 +103,7 @@ location / {
 }
 
 location ~ \.php$ {
-    fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+    fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
     fastcgi_index index.php;
     fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
     include fastcgi_params;
