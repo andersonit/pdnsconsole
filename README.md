@@ -109,7 +109,15 @@ location ~ \.php$ {
     include fastcgi_params;
 }
 ```
-
+### Upload Permissions
+Set permissions to allow uploads of images for white lable branding
+```bash
+sudo mkdir -p /var/www/pdnsconsole/webroot/assets/img/uploads
+sudo chown -R www-data:www-data /var/www/pdnsconsole/webroot/assets/img/uploads
+sudo find /var/www/pdnsconsole/webroot/assets/img/uploads -type d -exec chmod 750 {} \;
+sudo find /var/www/pdnsconsole/webroot/assets/img/uploads -type f -exec chmod 640 {} \;
+sudo chmod g+s /var/www/pdnsconsole/webroot/assets/img/uploads
+```
 ### Security Headers
 
 Add these headers to your web server configuration:

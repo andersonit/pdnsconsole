@@ -127,11 +127,9 @@ include $_SERVER['DOCUMENT_ROOT'].'/includes/header.php';
             <div class="card-body">
                 <p class="mb-2">Unlock the full power of PDNS Console with a Commercial License:</p>
                 <ul class="mb-3 small">
-                    <li>Unlimited domains (remove the 5-domain free tier cap)</li>
-                    <li>Advanced DNSSEC management (key lifecycle, DS export)</li>
-                    <li>Priority support & faster issue turnaround</li>
-                    <li>White-label and branding enhancements</li>
-                    <li>Multi-tenant scalability & advanced usage reports</li>
+                    <li>Up to Unlimited Zones (remove the 5-Zone free tier cap)</li>
+                    <li>Support ticketing and email</li>
+                    <li>Feature Request Priority</li>
                 </ul>
                 <p class="small text-muted mb-2">Your license is validated locally (offline) – no external calls. Upgrading requires only pasting the key here.</p>
                 <a href="https://pdnsconsole.com" target="_blank" rel="noopener" class="small">Learn more at pdnsconsole.com</a>

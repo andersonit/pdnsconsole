@@ -23,7 +23,7 @@ $isSuperAdmin = $user->isSuperAdmin($currentUser['id']);
 // Get domain ID
 $domainId = intval($_GET['id'] ?? 0);
 if (empty($domainId)) {
-    header('Location: ?page=zones');
+    header('Location: ?page=zone_manage');
     exit;
 }
 

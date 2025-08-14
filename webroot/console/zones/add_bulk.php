@@ -344,7 +344,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </div>
 
                             <div class="d-flex justify-content-between">
-                                <a href="?page=zones" class="btn btn-secondary">
+                                <a href="?page=zone_manage" class="btn btn-secondary">
                                     <i class="bi bi-arrow-left me-1"></i>
                                     Back to Zones
                                 </a>
