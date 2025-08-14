@@ -35,6 +35,9 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     <?php if (!empty($branding['site_favicon'])): ?>
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
     <link rel="shortcut icon" href="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
+    <?php else: ?>
+    <link rel="icon" type="image/svg+xml" href="/assets/img/pdns-favicon.svg">
+    <link rel="shortcut icon" href="/assets/img/pdns-favicon.svg">
     <?php endif; ?>
     <?php 
     // Inject DNSSEC hold period meta if available

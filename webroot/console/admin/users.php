@@ -54,15 +54,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 // Create user
-                $userId = $user->create($username, $email, $password, $role);
-                
+                $createResult = $user->create($username, $email, $password, $role);
+                if (!is_array($createResult) || empty($createResult['success'])) {
+                    throw new Exception($createResult['error'] ?? 'Failed to create user');
+                }
+                $userId = (int)($createResult['user_id'] ?? 0);
+                if ($userId <= 0) {
+                    throw new Exception('Failed to retrieve new user ID');
+                }
+
                 // Assign to tenants if specified
                 if (!empty($tenantIds) && $role === 'tenant_admin') {
                     foreach ($tenantIds as $tenantId) {
-                        $db->execute(
-                            "INSERT INTO user_tenants (user_id, tenant_id) VALUES (?, ?)",
-                            [$userId, $tenantId]
-                        );
+                        $tenantId = (int)$tenantId;
+                        if ($tenantId > 0) {
+                            $db->execute(
+                                "INSERT INTO user_tenants (user_id, tenant_id) VALUES (?, ?)",
+                                [$userId, $tenantId]
+                            );
+                        }
                     }
                 }
                 
