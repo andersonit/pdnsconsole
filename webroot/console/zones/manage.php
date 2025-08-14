@@ -433,7 +433,7 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                             $icon = ' <i class="bi bi-chevron-' . ($currentOrder === 'ASC' ? 'up' : 'down') . '"></i>';
                                         }
                                         $url = '?' . $baseQuery . '&page_num=' . $pageNum . '&sort_by=' . urlencode($column) . '&sort_order=' . $nextOrder;
-                                        echo '<a href="' . htmlspecialchars($url) . '" class="text-decoration-none text-dark">' . htmlspecialchars($label) . $icon . '</a>';
+                                        echo '<a href="' . htmlspecialchars($url) . '" class="text-decoration-none zone-sort-link">' . htmlspecialchars($label) . $icon . '</a>';
                                     }
                                 ?>
                                 <th><?php renderZoneHeader('Zone Name','name',$sortBy,$sortOrder,$paginationBase,$page_num); ?></th>
@@ -452,7 +452,13 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                             <?php foreach ($domains as $domainRow): ?>
                                 <tr>
                                     <td>
-                                        <strong><?php echo htmlspecialchars($domainRow['name']); ?></strong>
+                                        <strong>
+                                            <a href="?page=records&domain_id=<?php echo $domainRow['id']; ?>"
+                                               class="zone-name-link"
+                                               title="View records for <?php echo htmlspecialchars($domainRow['name']); ?>">
+                                                <?php echo htmlspecialchars($domainRow['name']); ?>
+                                            </a>
+                                        </strong>
                                         <?php if ($domainRow['account']): ?>
                                             <br>
                                             <small class="text-muted">Account: <?php echo htmlspecialchars($domainRow['account']); ?></small>
@@ -525,8 +531,8 @@ include_once $_SERVER['DOCUMENT_ROOT'] . '/includes/pagination.php';
                                     </td>
                                                                         <td class="text-end">
                                         <div class="btn-group btn-group-sm">
-                                            <a href="?page=records&domain_id=<?php echo $domainRow['id']; ?>" 
-                                               class="btn btn-outline-dark" title="Manage Records">
+                                                                      <a href="?page=records&domain_id=<?php echo $domainRow['id']; ?>" 
+                                                                          class="btn btn-outline-dark records-btn" title="Manage Records">
                                                 <i class="bi bi-list-ul"></i>
                                                 Records
                                             </a>

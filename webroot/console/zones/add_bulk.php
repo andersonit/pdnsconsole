@@ -175,10 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
     }
 }
 
-// Get domain types
-$domainTypes = [
-    'NATIVE' => 'Native (PowerDNS manages the domain)'
-];
+// Domain types are fixed to NATIVE; no selection or alternative types supported
 
 // Page setup
 $pageTitle = 'Bulk Add Zones';
@@ -266,34 +263,31 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                         <form method="POST" id="bulkDomainForm">
                             <input type="hidden" name="csrf_token" value="<?php echo csrf_token(); ?>">
                             <!-- Domain Type is fixed to Native in this system; UI removed -->
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="radio" name="zone_type" id="forward_zone"
+                                               value="forward" <?php echo (!isset($_POST['zone_type']) || $_POST['zone_type'] !== 'reverse') ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="forward_zone">
+                                            <strong>Forward Zone</strong>
+                                            <div class="text-muted small">Standard domains (e.g., example.com)</div>
+                                        </label>
                                     </div>
-                                    <div class="col-md-6">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="zone_type" id="reverse_zone" 
-                                                   value="reverse" <?php echo (isset($_POST['zone_type']) && $_POST['zone_type'] === 'reverse') ? 'checked' : ''; ?>>
-                                            <label class="form-check-label" for="reverse_zone">
-                                                <strong>Reverse Zone</strong>
-                                                <div class="text-muted small">IP networks for PTR records (e.g., 192.168.1.0/24)</div>
-                                            </label>
-                                        </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" name="zone_type" id="reverse_zone" 
+                                               value="reverse" <?php echo (isset($_POST['zone_type']) && $_POST['zone_type'] === 'reverse') ? 'checked' : ''; ?>>
+                                        <label class="form-check-label" for="reverse_zone">
+                                            <strong>Reverse Zone</strong>
+                                            <div class="text-muted small">IP networks for PTR records (e.g., 192.168.1.0/24)</div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>
+                            
 
-                            <!-- Domain Type Selection -->
-                            <div class="mb-3">
-                                <label for="domain_type" class="form-label">
-                                    Domain Type <span class="text-danger">*</span>
-                                </label>
-                                <select class="form-select" id="domain_type" name="domain_type" required>
-                                    <?php foreach ($domainTypes as $type => $description): ?>
-                                        <option value="<?php echo $type; ?>" 
-                                                <?php echo (isset($_POST['domain_type']) && $_POST['domain_type'] === $type) || (!isset($_POST['domain_type']) && $type === 'NATIVE') ? 'selected' : ''; ?>>
-                                            <?php echo $description; ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                            <!-- Domain Type is fixed to NATIVE; selection removed -->
 
                             <!-- Tenant Selection (Super Admin only) -->
                             <?php if ($isSuperAdmin && count($userTenants) > 0): ?>
