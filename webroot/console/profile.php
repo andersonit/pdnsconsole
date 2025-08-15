@@ -88,8 +88,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('New passwords do not match');
                 }
                 
-                if (strlen($newPassword) < 8) {
-                    throw new Exception('Password must be at least 8 characters long');
+                if (strlen($newPassword) < 12) {
+                    throw new Exception('Password must be at least 12 characters long');
+                }
+                
+                if (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $newPassword)) {
+                    throw new Exception('Password must contain at least one uppercase letter, one lowercase letter, one number, and one symbol');
                 }
                 
                 // Verify current password
@@ -306,13 +310,13 @@ $pageTitle = 'User Profile';
                             <div class="col-md-6">
                                 <label for="new_password" class="form-label">New Password</label>
                                 <input type="password" class="form-control" id="new_password" name="new_password" 
-                                       minlength="8" required>
-                                <div class="form-text">Minimum 8 characters</div>
+                                       minlength="12" required>
+                                <div class="form-text">Minimum 12 characters, must include uppercase, lowercase, number, and symbol</div>
                             </div>
                             <div class="col-md-6">
                                 <label for="confirm_password" class="form-label">Confirm New Password</label>
                                 <input type="password" class="form-control" id="confirm_password" name="confirm_password" 
-                                       minlength="8" required>
+                                       minlength="12" required>
                             </div>
                             <div class="col-12">
                                 <button type="submit" class="btn btn-warning">

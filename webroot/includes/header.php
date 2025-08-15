@@ -36,8 +36,8 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     <link rel="icon" type="image/png" href="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
     <link rel="shortcut icon" href="<?php echo htmlspecialchars($branding['site_favicon']); ?>">
     <?php else: ?>
-    <link rel="icon" type="image/svg+xml" href="/assets/img/pdns-favicon.svg">
-    <link rel="shortcut icon" href="/assets/img/pdns-favicon.svg">
+    <link rel="icon" type="image/png" href="/assets/img/pdns-favicon.png">
+    <link rel="shortcut icon" href="/assets/img/pdns-favicon.png">
     <?php endif; ?>
     <?php 
     // Inject DNSSEC hold period meta if available
@@ -314,7 +314,9 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
             <?php $brandHome = $user->isSuperAdmin($currentUser['id']) ? 'admin_dashboard' : 'zone_manage'; ?>
             <a class="navbar-brand d-flex align-items-center px-2" href="?page=<?php echo $brandHome; ?>">
                 <?php if (!empty($branding['site_logo'])): ?>
-                    <img src="<?php echo htmlspecialchars($branding['site_logo']); ?>" alt="Logo" class="me-2 brand-logo">
+                    <img src="<?php echo htmlspecialchars($branding['site_logo']); ?>" alt="<?php echo htmlspecialchars($branding['site_name']); ?> logo" class="me-2 brand-logo">
+                <?php else: ?>
+                    <img src="/assets/img/pdns_logo.png" alt="<?php echo htmlspecialchars($branding['site_name']); ?> logo" class="me-2 brand-logo">
                 <?php endif; ?>
                 <span class="text-truncate brand-text"><?php echo htmlspecialchars($branding['site_name']); ?></span>
             </a>

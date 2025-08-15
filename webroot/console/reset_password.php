@@ -33,8 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_password'])) {
         $error = 'Please fill in all fields';
     } elseif ($newPassword !== $confirmPassword) {
         $error = 'Passwords do not match';
-    } elseif (strlen($newPassword) < 8) {
-        $error = 'Password must be at least 8 characters long';
+    } elseif (strlen($newPassword) < 12) {
+        $error = 'Password must be at least 12 characters long';
+    } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_])/', $newPassword)) {
+        $error = 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one symbol';
     } else {
         $result = $user->resetPasswordWithToken($resetToken, $newPassword);
         if ($result['success']) {
@@ -139,7 +141,7 @@ if ($themeInfo['effective_dark']) {
                            id="new_password" 
                            name="new_password" 
                            placeholder="New Password"
-                           minlength="8"
+                           minlength="12"
                            required>
                     <label for="new_password">New Password</label>
                 </div>
@@ -150,7 +152,7 @@ if ($themeInfo['effective_dark']) {
                            id="confirm_password" 
                            name="confirm_password" 
                            placeholder="Confirm Password"
-                           minlength="8"
+                           minlength="12"
                            required>
                     <label for="confirm_password">Confirm Password</label>
                 </div>
@@ -158,7 +160,7 @@ if ($themeInfo['effective_dark']) {
                 <div class="mb-3">
                     <small class="text-muted">
                         <i class="bi bi-info-circle me-1"></i>
-                        Password must be at least 8 characters long.
+                        Password must be at least 12 characters long and include uppercase, lowercase, number, and symbol.
                     </small>
                 </div>
                 

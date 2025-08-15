@@ -105,13 +105,15 @@ body.dark-mode .table-hover tbody tr:hover {
 
 /* Dark mode sortable table header links on Zones page */
 /* Light mode sortable header links: match default header text color and style */
-.table thead .zone-sort-link {
-    color: inherit; /* keep consistent with other th text */
+.table thead a.zone-sort-link,
+.table thead .zone-sort-link,
+.table thead .zone-sort-link:link,
+.table thead .zone-sort-link:visited,
+.table thead .zone-sort-link:hover,
+.table thead .zone-sort-link:active,
+.table thead .zone-sort-link:focus {
+    color: inherit !important; /* override Bootstrap link color */
     text-decoration: none; /* no underline in headers */
-}
-.table thead .zone-sort-link:hover {
-    color: inherit;
-    text-decoration: none;
 }
 
 /* Dark mode: make sortable headers match unsortable header color and no hover color change */
@@ -225,13 +227,16 @@ body.dark-mode .text-muted {
 }
 
 /* Zone name link styling: inherit color with subtle hover underline */
-.zone-name-link {
-    color: inherit;
+.table .zone-name-link,
+.table .zone-name-link:link,
+.table .zone-name-link:visited,
+.table .zone-name-link:active,
+.table .zone-name-link:focus {
+    color: inherit !important;
     text-decoration: none;
 }
-.zone-name-link:hover,
-.zone-name-link:focus {
-    color: inherit;
+.table .zone-name-link:hover {
+    color: inherit !important;
     text-decoration: underline;
 }
 

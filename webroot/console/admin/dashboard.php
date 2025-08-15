@@ -229,7 +229,7 @@ include $_SERVER['DOCUMENT_ROOT'] . '/includes/header.php';
                             </a></div>
                         <div class="col-6 col-md-4 col-xl-3"><a href="?page=admin_branding" class="dash-tile text-body">
                                 <div class="icon-wrap bg-info bg-opacity-10"><i class="bi bi-palette text-info fs-5"></i></div>
-                                <div class="title">Branding</div><small>Themes & logos</small>
+                                <div class="title">Branding</div><small>White-label Branding</small>
                             </a></div>
                         <div class="col-6 col-md-4 col-xl-3"><a href="?page=admin_system" class="dash-tile text-body">
                                 <div class="icon-wrap bg-dark bg-opacity-10"><i class="bi bi-cpu text-dark fs-5"></i></div>
