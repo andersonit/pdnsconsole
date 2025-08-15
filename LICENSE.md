@@ -9,7 +9,7 @@ This license governs the use of the PDNS Console software ("Software") provided 
 
 ## 1. License Grant
 
-Subject to the terms of this License, Neowyze LLC grants you a non-exclusive, non-transferable, royalty-free license to use, modify, and distribute the Software **only for non-commercial use**, defined as:
+Subject to the terms of this License, Neowyze Technologies, LLC grants you a non-exclusive, non-transferable, royalty-free license to use, modify, and distribute the Software **only for non-commercial use**, defined as:
 
 - Managing up to **five (5) domains** per installation.
 - Running the Software for personal, educational, or internal evaluation purposes.
