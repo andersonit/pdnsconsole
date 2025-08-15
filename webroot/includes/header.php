@@ -54,11 +54,17 @@ $bodyClasses = $themeInfo['effective_dark'] ? 'dark-mode' : '';
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff2" as="font" type="font/woff2" crossorigin="anonymous">
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/fonts/bootstrap-icons.woff" as="font" type="font/woff" crossorigin="anonymous">
     
-    <!-- Custom CSS -->
-    <link href="/assets/css/custom.css" rel="stylesheet">
+    <!-- Custom CSS with cache-busting -->
+    <?php 
+        $customCssPath = $_SERVER['DOCUMENT_ROOT'] . '/assets/css/custom.css';
+        $themeSysCssPath = $_SERVER['DOCUMENT_ROOT'] . '/assets/css/theme-system.css';
+        $customCssVer = @filemtime($customCssPath) ?: 1;
+        $themeSysCssVer = @filemtime($themeSysCssPath) ?: 1;
+    ?>
+    <link href="/assets/css/custom.css?v=<?php echo $customCssVer; ?>" rel="stylesheet">
     
-    <!-- Theme System CSS -->
-    <link href="/assets/css/theme-system.css" rel="stylesheet">
+    <!-- Theme System CSS with cache-busting -->
+    <link href="/assets/css/theme-system.css?v=<?php echo $themeSysCssVer; ?>" rel="stylesheet">
     
     <!-- CSRF Token for JavaScript -->
     <script>
