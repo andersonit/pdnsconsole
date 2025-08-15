@@ -3,37 +3,8 @@
 # Configuration files (contain sensitive data)
 /config/config.php
 
-# Log files
-*.log
-/logs/
-
-# Cache files
-/cache/
-/tmp/
-
 # IDE files
 .vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Uploaded files
-/webroot/uploads/
-
-# Environment specific
-.env
-.env.local
-.env.*.local
 
 # Backup files
 *.bak
@@ -41,8 +12,3 @@ Thumbs.db
 
 # Composer dependencies
 /vendor/
-
-#license config
-/license_admin/config.php
-/license_admin/private.pem
-
