@@ -37,14 +37,14 @@ class Records {
         ],
         'CNAME' => [
             'name' => 'CNAME Record (Alias)',
-            'pattern' => '/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'pattern' => '/^[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => 'www.example.com.',
             'description' => 'Creates an alias pointing to another domain name'
         ],
         'MX' => [
             'name' => 'MX Record (Mail Exchange)',
             // Priority is stored separately in the prio column; allow optional leading number for backward compatibility
-            'pattern' => '/^(?:[0-9]+ )?[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'pattern' => '/^(?:[0-9]+ )?[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => 'mail.example.com.',
             'description' => 'Specifies mail server hostname (priority set separately)'
         ],
@@ -56,21 +56,21 @@ class Records {
         ],
         'NS' => [
             'name' => 'NS Record (Name Server)',
-            'pattern' => '/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'pattern' => '/^[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => 'ns1.example.com.',
             'description' => 'Delegates a subdomain to other name servers',
             'readonly' => true
         ],
         'PTR' => [
             'name' => 'PTR Record (Reverse DNS)',
-            'pattern' => '/^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'pattern' => '/^[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => 'example.com.',
             'description' => 'Maps an IP address to a hostname (reverse DNS)'
         ],
         'SRV' => [
             'name' => 'SRV Record (Service)',
             // Priority is stored separately (prio column). Pattern allows optional leading priority for legacy entries
-            'pattern' => '/^(?:[0-9]+ )?[0-9]+ [0-9]+ [a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*\.?$/',
+            'pattern' => '/^(?:[0-9]+ )?[0-9]+ [0-9]+ [a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9_]([a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?)*\.?$/',
             'example' => '5 443 server.example.com.',
             'description' => 'Defines service weight, port, and target host (priority set separately)'
         ],
@@ -694,8 +694,8 @@ class Records {
             return true;
         }
         
-        // Standard domain name validation
-        return preg_match('/^(?:[a-zA-Z0-9*](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9*](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.?$/', $name);
+        // Allow underscores in record names (for DMARC, DKIM, SRV, etc.)
+        return preg_match('/^(?:[a-zA-Z0-9*_](?:[a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?\.)*[a-zA-Z0-9*_](?:[a-zA-Z0-9\-_]{0,61}[a-zA-Z0-9])?\.?$/', $name);
     }
     
     /**
