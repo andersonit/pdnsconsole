@@ -2,13 +2,30 @@
 # PDNS Console Sample Data Creation Script (Corrected)
 # This script creates sample tenants, domains, and DNS records for testing
 
-# Database connection parameters
-DB_HOST="127.0.0.1"
-DB_USER="pdnscadmin"
-DB_PASS="Ch1m3r@76!"
-DB_NAME="pdnsconsole"
+# Get the script's directory and derive the config path
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="$SCRIPT_DIR/../config/config.php"
+
+# Check if config file exists
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Error: Configuration file not found at $CONFIG_FILE"
+    exit 1
+fi
+
+# Extract database connection parameters from config.php
+DB_HOST=$(grep "define('DB_HOST'" "$CONFIG_FILE" | sed "s/.*'\(.*\)'.*/\1/")
+DB_NAME=$(grep "define('DB_NAME'" "$CONFIG_FILE" | sed "s/.*'\(.*\)'.*/\1/")
+DB_USER=$(grep "define('DB_USER'" "$CONFIG_FILE" | sed "s/.*'\(.*\)'.*/\1/")
+DB_PASS=$(grep "define('DB_PASS'" "$CONFIG_FILE" | sed "s/.*'\(.*\)'.*/\1/")
+
+# Validate that we got all required parameters
+if [ -z "$DB_HOST" ] || [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASS" ]; then
+    echo "Error: Could not extract database connection parameters from $CONFIG_FILE"
+    exit 1
+fi
 
 echo "Creating sample data for PDNS Console..."
+echo "Using database: $DB_NAME on $DB_HOST"
 
 # Function to execute SQL
 execute_sql() {
