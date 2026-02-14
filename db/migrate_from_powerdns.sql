@@ -1,6 +1,8 @@
 -- =============================================================================
 -- PDNS Console - PowerDNS Extension Migration Script
 -- =============================================================================
+-- ONLY USE THIS IF YOU HAVE AN EXISTING POWERDNS DATABASE AND WANT TO ADD PDNSConsole FEATURES!!!
+
 -- This script extends an existing PowerDNS database to work with PDNS Console
 -- It adds all the administrative tables and features while preserving existing
 -- PowerDNS domains and records data
@@ -100,7 +102,8 @@ CREATE TABLE IF NOT EXISTS domain_tenants (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_domain_tenant (domain_id, tenant_id)
+    UNIQUE KEY unique_domain_tenant (domain_id, tenant_id),
+    INDEX tenant_id (tenant_id)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
 
 -- Global settings (including white-labeling and DNS defaults)
@@ -118,21 +121,25 @@ CREATE TABLE IF NOT EXISTS global_settings (
 -- Dynamic DNS access tokens for API (ddclient compatible)
 CREATE TABLE IF NOT EXISTS dynamic_dns_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    token VARCHAR(64) NOT NULL UNIQUE,
+    token VARCHAR(64) NOT NULL,
+    secret_hash VARCHAR(255) DEFAULT NULL,
+    record_id BIGINT NOT NULL,
     domain_id INT NOT NULL,
     tenant_id INT NOT NULL,
-    allowed_records TEXT, -- JSON array of allowed record names/types (A, AAAA)
-    is_active BOOLEAN DEFAULT TRUE,
-    rate_limit_count INT DEFAULT 0,
-    rate_limit_reset TIMESTAMP NULL,
-    expires_at TIMESTAMP NULL,
-    last_used TIMESTAMP NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    window_count INT NOT NULL DEFAULT 0,
+    window_reset_at DATETIME DEFAULT NULL,
+    throttle_until DATETIME DEFAULT NULL,
+    last_ip VARCHAR(45) DEFAULT NULL,
+    last_used DATETIME DEFAULT NULL,
+    expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-    INDEX idx_token (token),
-    INDEX idx_domain_id (domain_id)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
+    UNIQUE KEY token (token),
+    KEY fk_ddns_tenant (tenant_id),
+    KEY idx_ddns_token (token),
+    KEY idx_ddns_record (record_id),
+    KEY idx_ddns_domain (domain_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Two-Factor Authentication (encrypted storage)
 CREATE TABLE IF NOT EXISTS user_mfa (
@@ -153,6 +160,7 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     user_id INT NULL,
     ip_address VARCHAR(45),
     user_agent TEXT,
+    session_data TEXT,
     last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     expires_at TIMESTAMP NOT NULL,
@@ -203,6 +211,7 @@ CREATE TABLE IF NOT EXISTS record_comments (
     UNIQUE KEY unique_record (record_id),
     INDEX idx_record_id (record_id),
     INDEX idx_domain_record (domain_id, record_id),
+    INDEX idx_rc_user_id (user_id),
     CONSTRAINT fk_record_comments_record FOREIGN KEY (record_id) REFERENCES records(id) ON DELETE CASCADE,
     CONSTRAINT fk_record_comments_domain FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
     CONSTRAINT fk_record_comments_user FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE SET NULL
@@ -359,6 +368,7 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
     expires_at DATETIME NOT NULL,
     created_at DATETIME NOT NULL,
     FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+    INDEX user_id (user_id),
     INDEX idx_token (token),
     INDEX idx_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

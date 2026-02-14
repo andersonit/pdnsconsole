@@ -203,22 +203,25 @@ CREATE TABLE global_settings (
 -- Dynamic DNS access tokens for API (ddclient compatible)
 CREATE TABLE dynamic_dns_tokens (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    token VARCHAR(64) NOT NULL UNIQUE,
+    token VARCHAR(64) NOT NULL,
+    secret_hash VARCHAR(255) DEFAULT NULL,
+    record_id BIGINT NOT NULL,
     domain_id INT NOT NULL,
     tenant_id INT NOT NULL,
-    allowed_records TEXT, -- JSON array of allowed record names/types (A, AAAA)
-    is_active BOOLEAN DEFAULT TRUE,
-    rate_limit_count INT DEFAULT 0,
-    rate_limit_reset TIMESTAMP NULL,
-    expires_at TIMESTAMP NULL,
-    last_used TIMESTAMP NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    window_count INT NOT NULL DEFAULT 0,
+    window_reset_at DATETIME DEFAULT NULL,
+    throttle_until DATETIME DEFAULT NULL,
+    last_ip VARCHAR(45) DEFAULT NULL,
+    last_used DATETIME DEFAULT NULL,
+    expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (domain_id) REFERENCES domains(id) ON DELETE CASCADE,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
-    INDEX idx_token (token),
-  INDEX idx_domain_id (domain_id),
-  INDEX tenant_id (tenant_id)
-) Engine=InnoDB CHARACTER SET 'utf8mb4';
+    UNIQUE KEY token (token),
+    KEY fk_ddns_tenant (tenant_id),
+    KEY idx_ddns_token (token),
+    KEY idx_ddns_record (record_id),
+    KEY idx_ddns_domain (domain_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Two-Factor Authentication (encrypted storage)
 CREATE TABLE user_mfa (
@@ -258,6 +261,19 @@ CREATE TABLE custom_record_types (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_type_name (type_name)
 ) Engine=InnoDB CHARACTER SET 'utf8mb4';
+
+-- Password reset tokens table
+CREATE TABLE password_reset_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    token VARCHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
+    INDEX user_id (user_id),
+    INDEX idx_token (token),
+    INDEX idx_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Audit log
 CREATE TABLE audit_log (
@@ -349,19 +365,4 @@ INSERT INTO nameservers (hostname, priority, is_active) VALUES
 -- 7. Centralized nameserver management with automatic NS record updates
 -- 8. Tenant-specific SOA contact override functionality
 -- 9. Password reset functionality with secure tokens
--- =============================================================================
-
--- Password reset tokens table
-CREATE TABLE password_reset_tokens (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
-    token VARCHAR(64) NOT NULL UNIQUE,
-    expires_at DATETIME NOT NULL,
-    created_at DATETIME NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES admin_users(id) ON DELETE CASCADE,
-  INDEX user_id (user_id),
-    INDEX idx_token (token),
-    INDEX idx_expires (expires_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
 -- =============================================================================

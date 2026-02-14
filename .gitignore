@@ -12,3 +12,6 @@
 
 # Composer dependencies
 /vendor/
+
+# Miscellaneous
+/PDNS_Console_Development_Plan.md
