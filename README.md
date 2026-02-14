@@ -30,24 +30,113 @@ Please reach out with any input, feature requests or bugs.
 
 - PHP 8.0+ with PDO MySQL extension
 - MySQL 8.0+ or MariaDB 10.x
-- Web server (Apache or Nginx) with SSL
+- Nginx Web server with SSL (Will work with Apache, but instructions not included)
 - OpenSSL for encryption and DNSSEC operations
 - PowerDNS with gmysql backend (Native domains) – see [PowerDNS Installation](docs/POWERDNS_INSTALLATION.md)
+
+### Requirements Installation
+
+#### 1. Install PHP 8.3 and Extensions
+
+**Debian/Ubuntu:**
+```bash
+sudo apt update
+sudo apt install -y software-properties-common
+sudo add-apt-repository ppa:ondrej/php
+sudo apt update
+sudo apt install -y php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-mbstring php8.3-curl php8.3-zip php8.3-gd php8.3-bcmath php8.3-intl php8.3-cli php8.3-openssl
+```
+
+**RHEL/CentOS/Alma/Rocky:**
+```bash
+sudo dnf install -y epel-release
+sudo dnf module reset php
+sudo dnf module enable php:8.3
+sudo dnf install -y php php-fpm php-mysqlnd php-xml php-mbstring php-curl php-zip php-gd php-bcmath php-intl php-cli php-openssl
+```
+
+#### 2. Install MariaDB (or MySQL)
+
+**Debian/Ubuntu:**
+```bash
+sudo apt install -y mariadb-server
+sudo systemctl enable --now mariadb
+```
+
+**RHEL/CentOS/Alma/Rocky:**
+```bash
+sudo dnf install -y MariaDB-server
+sudo systemctl enable --now mariadb
+```
+
+#### 3. Install Nginx
+
+**Debian/Ubuntu:**
+```bash
+sudo apt install -y nginx
+sudo systemctl enable --now nginx
+```
+
+**RHEL/CentOS/Alma/Rocky:**
+```bash
+sudo dnf install -y nginx
+sudo systemctl enable --now nginx
+```
+
+#### 4. Install PowerDNS (Authoritative) and MySQL Backend
+
+**Debian/Ubuntu:**
+```bash
+sudo apt install -y pdns-server pdns-backend-mysql pdns-tools
+```
+If not available, add the PowerDNS repo (see docs/POWERDNS_INSTALLATION.md for details).
+
+**RHEL/CentOS/Alma/Rocky:**
+```bash
+sudo rpm -Uvh https://repo.powerdns.com/repo-files/authoritative/powerdns-auth-48.repo
+sudo dnf install -y pdns pdns-backend-mysql pdns-tools
+```
+
+#### 5. Create Database and User
+
+```bash
+sudo mysql -e "CREATE DATABASE pdnsconsole CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+sudo mysql -e "CREATE USER 'pdnsconsole'@'localhost' IDENTIFIED BY 'StrongPdnsPass!';"
+sudo mysql -e "GRANT ALL ON pdnsconsole.* TO 'pdnsconsole'@'localhost'; FLUSH PRIVILEGES;"
+```
+- Replace `StrongPdnsPass!` with a secure password of your choice.
 
 Note: PDNS Console operates in Native mode only. MASTER/SLAVE workflows are not exposed in the UI; all authoritative servers should share the same PowerDNS database.
 
 ## 🛠️ Installation
+NOTE: Log in as "root" or user with sudo privileges
+
+And enter password
 
 ### 1. Clone the Repository and create website
 
 ```bash
 #Create website and set permissions(example website in /var/www/pdnsconsole)
-cd /var/www
-sudo git clone https://github.com/andersonit/pdnsconsole.git
-sudo chown -R www-data:www-data /var/www/pdnsconsole
+# 1. Create the user without a home directory and as a system user
+sudo useradd -r -s /bin/false pdnsconsole
+
+# 2. Add the user to the necessary groups
+sudo usermod -aG sudo pdnsconsole
+sudo usermod -aG www-data pdnsconsole
+
+# 3. Prepare the directory
+sudo mkdir -p /var/www/pdnsconsole
+sudo chown pdnsconsole:www-data /var/www/pdnsconsole
+
+# 4. Clone the repository 
+# We use 'sudo -u' to clone as the specific user so the hidden .git files 
+# are owned correctly from the start.
+sudo -u pdnsconsole git clone https://github.com/andersonit/pdnsconsole /var/www/pdnsconsole
+
+# 5. Apply final permissions and the SetGID bit
+sudo chown -R pdnsconsole:www-data /var/www/pdnsconsole
 sudo chmod -R 775 /var/www/pdnsconsole
 sudo chmod g+s /var/www/pdnsconsole
-cd pdnsconsole
 ```
 
 ### 2. Configure Database
@@ -60,17 +149,44 @@ cp config/config.sample.php config/config.php
 nano config/config.php
 ```
 
-### 3. Import Database Schema
+### 3. Configure PowerDNS to Use the Database
 
-```bash
-# Create the databse
-mysql -u root
-*** commands to create db *** 
-# Import the complete schema (PowerDNS + PDNS Console tables)
-mysql -u your_user -p your_database < db/complete-schema.sql
+Edit (or create) `/etc/powerdns/pdns.conf` and set the following (adjust password as needed):
+
+```ini
+# Backend
+launch=gmysql
+gmysql-host=127.0.0.1
+gmysql-dbname=pdnsconsole
+gmysql-user=pdnsconsole
+gmysql-password=StrongPdnsPass!
+gmysql-dnssec=yes
+
+# API / Webserver (required for PDNS Console DNSSEC features)
+api=yes
+api-key=DevTestKey123
+webserver=yes
+webserver-address=127.0.0.1
+webserver-port=8081
+webserver-allow-from=127.0.0.1
 ```
 
-### 4. Configure Application
+- Replace `StrongPdnsPass!` with your actual database password.
+- You may change the `api-key` to a secure value of your choice.
+
+Restart PowerDNS to apply changes:
+```bash
+sudo systemctl restart pdns
+```
+
+### 4. Import Database Schema
+
+```bash
+# Import the complete schema (PowerDNS + PDNS Console tables)
+mysql -u pdnsconsole -p pdnsconsole < db/complete-schema.sql
+```
+
+### 5. Configure Application
 
 Edit `config/app.php` and change the encryption key:
 
@@ -78,50 +194,47 @@ Edit `config/app.php` and change the encryption key:
 define('ENCRYPTION_KEY', 'your-unique-32-character-secret-key');
 ```
 
-### 5. Create Super Admin User
+### 6. Create Super Admin User
 
 ```bash
 php cli/create_admin.php
 ```
 
-### 6. Set Web Server Document Root
+### 7. Set Web Server Document Root
 
 Point your web server document root to the `webroot/` directory.
 
-### 7. Finish and Log In
+### 8. Finish and Log In
 
 Point your browser to the site (root or subdirectory where `webroot/` is served) and log in with the super admin you created.
 
-## 🔧 Configuration
+### Web Server & SSL (Nginx example)
 
-### Web Server Configuration
+Use the included sample Nginx configuration as a starting point: [config/nginx-pdnsconsole.conf](config/nginx-pdnsconsole.conf).
 
-#### Apache (.htaccess)
+1. Copy the sample site and enable it:
 
-```apache
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.php [QSA,L]
+>IF USING YOUR OWN SSL CERT
+```bash
+# IF USING YOUR OWN SSL CERT
+sudo cp config/nginx-pdnsconsole.conf /etc/nginx/conf.d/pdnsconsole.conf
+# Edit the file if you need to adjust `root` and server name
+# Remove HA section if not behind a proxy
+# Update the SSL Cert and Key. 
+sudo nginx -t && sudo systemctl reload nginx
+```
+> IF USING CERTBOT for Let's Encrypt SSL Certificate
+```bash
+sudo cp config/nginx-pdnsconsole.conf /etc/nginx/conf.d/pdnsconsole.conf
+# Edit the file if you need to adjust `root` and server name
+sudo nginx -t && sudo systemctl reload nginx
+# CONTINUE TO OPTIONAL Let's Encrypt SECTION IN STEP 4
 ```
 
-#### Nginx
-Adjust php version if necessary
+2. Ensure the PHP-FPM socket in the config matches your system (e.g. `/var/run/php/php8.3-fpm.sock`), or change to `127.0.0.1:9000` if using TCP.
 
-```nginx
-location / {
-    try_files $uri $uri/ /index.php?$query_string;
-}
+3. Upload directory permissions (required for white-label branding uploads):
 
-location ~ \.php$ {
-    fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;
-    fastcgi_index index.php;
-    fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
-    include fastcgi_params;
-}
-```
-### Upload Permissions
-Set permissions to allow uploads of images for white lable branding
 ```bash
 sudo mkdir -p /var/www/pdnsconsole/webroot/assets/img/uploads
 sudo chown -R www-data:www-data /var/www/pdnsconsole/webroot/assets/img/uploads
@@ -129,16 +242,58 @@ sudo find /var/www/pdnsconsole/webroot/assets/img/uploads -type d -exec chmod 75
 sudo find /var/www/pdnsconsole/webroot/assets/img/uploads -type f -exec chmod 640 {} \;
 sudo chmod g+s /var/www/pdnsconsole/webroot/assets/img/uploads
 ```
-### Security Headers
 
-Add these headers to your web server configuration:
+4. Optional: Let’s Encrypt (recommended) — obtain and install a certificate using Certbot.
 
+If your active Nginx configuration already includes SSL (for example the bundled `config/nginx-pdnsconsole.conf`), Certbot may not be able to automatically modify it. In that case you can use a temporary HTTP-only server block that Certbot can edit safely.
+
+1. Install Certbot and the Nginx plugin:
+
+```bash
+sudo apt update
+sudo apt install -y certbot python3-certbot-nginx
 ```
-X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
-X-XSS-Protection: 1; mode=block
-Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+2. Run Certbot to obtain and install certificates (Certbot will update the enabled site):
+
+```bash
+sudo certbot --nginx -d example.com -d www.example.com
 ```
+
+3. After Certbot completes you have two options:
+
+- Copy the SSL directives that were updated in the /etc/nginx/conf.d/nginx-pdnsconsole-certbot.conf.  Replace that .conf file with the /config/nginx-pdnsconsole.conf file and update the SSL directives to point at the Certbot-generated paths.
+
+```nginx
+ssl_certificate /etc/letsencrypt/live/example.com/fullchain.pem;
+ssl_certificate_key /etc/letsencrypt/live/example.com/privkey.pem;
+```
+
+- Keep the /etc/nginx/conf.d/nginx-pdnsconsole-certbot.conf file and copy addtional config blocks from the /config/nginx-pdnsconsole.conf file, leaving the newly generated config lines added by Certbot.  
+
+5. Verify Nginx is serving HTTPS and set up automatic renewal (Certbot installs a cron/systemd timer by default):
+
+
+```bash
+# Check .conf file for errors and fix if needed
+sudo nginx -t
+# Reload Nginx after updating config files
+sudo systemctl reload nginx
+# Check certbot is running and test a renewal
+sudo systemctl status certbot.timer
+sudo certbot renew --dry-run
+```
+
+### OPTIONAL: Load Sample Data for Testing
+
+You can populate the database with sample tenants, domains, users, and DNS records for testing/demo purposes:
+
+```bash
+bash scripts/create_sample_data.sh
+```
+
+- This will use your current database configuration in `config/config.php`.
+- Review and edit the script if you want to customize the sample data.
 
 ## 🎨 Theming
 
@@ -272,6 +427,7 @@ Business Source License (BSL). Free for non-commercial use managing up to 5 doma
 - [ ] DNS zone templates
 - [ ] Optional bulk DNSSEC operations
 - [ ] Extension system for validators
+- [ ] Add ability to add "Secondary/Slave" zones (which will be read-only)
 
 ### Cron jobs
 

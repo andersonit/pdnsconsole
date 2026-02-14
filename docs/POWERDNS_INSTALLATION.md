@@ -45,6 +45,11 @@ sudo systemctl enable --now mariadb
 
 > If you use MySQL instead of MariaDB, package names may differ (e.g. `mysql-server`).
 
+### STOP!!!
+TO CONTINUE INSTALLING PDNS CONSOLE, MOVE TO [README FILE](README.md) 
+
+---------------
+# THE FOLLOWING INSTRUCITONS ARE INFORMATIONAL FOR BASE POWERDNS INSTALLATIONS
 ---
 ## 2. Create Database and User
 
@@ -74,20 +79,7 @@ mysql -D powerdns -e "SHOW TABLES;"
 You should see tables like: `domains, records, supermasters, comments, domainmetadata, cryptokeys, tsigkeys`.
 
 ---
-## 4. Apply PDNS Console Migration Additions
-
-The PDNS Console expects some additional tables / constraints. Apply the migration script located in the project repository:
-
-```bash
-mysql -D powerdns < /path/to/pdnsconsole/db/migrate_from_powerdns.sql
-```
-
-> Replace `/path/to/pdnsconsole` with your actual cloned path.
-
-Re-check tables to ensure new structures (for example any supplemental tables used by the console) are present.
-
----
-## 5. Configure `pdns.conf`
+## 4. Configure `pdns.conf`
 
 Edit (or create) `/etc/powerdns/pdns.conf`:
 ```
@@ -122,7 +114,7 @@ sudo systemctl status pdns --no-pager
 ```
 
 ---
-## 6. Verify API Connectivity
+## 5. Verify API Connectivity
 
 ```bash
 curl -s -H 'X-API-Key: DevTestKey123' http://127.0.0.1:8081/api/v1/servers | jq .
@@ -135,94 +127,7 @@ curl -s -H 'X-API-Key: DevTestKey123' http://127.0.0.1:8081/api/v1/servers/local
 ```
 
 ---
-## 7. Create a Test Zone
-
-You can use `pdnsutil` or the API.
-
-### Using `pdnsutil`
-```bash
-sudo pdnsutil create-zone test.local ns1.test.local
-sudo pdnsutil add-record test.local @ A 192.0.2.10
-sudo pdnsutil add-record test.local ns1 A 192.0.2.53
-```
-
-### Enable DNSSEC
-```bash
-sudo pdnsutil secure-zone test.local   # (or: pdnsutil enable-dnssec test.local)
-sudo pdnsutil show-zone test.local --dnssec
-```
-
-### Rectify (when needed)
-```bash
-sudo pdnsutil rectify-zone test.local
-```
-
-### Via API (alternative)
-```bash
-curl -X POST -H 'X-API-Key: DevTestKey123' -H 'Content-Type: application/json' \
-  http://127.0.0.1:8081/api/v1/servers/localhost/zones \
-  -d '{
-    "name": "test.local.",
-    "kind": "Native",
-    "masters": [],
-    "nameservers": ["ns1.test.local."]
-  }'
-
-curl -X PATCH -H 'X-API-Key: DevTestKey123' -H 'Content-Type: application/json' \
-  http://127.0.0.1:8081/api/v1/servers/localhost/zones/test.local. \
-  -d '{"dnssec": true}'
-```
-
----
-## 8. Add the Zone to PDNS Console
-
-In PDNS Console, create the same domain (e.g. `test.local`). Ensure:
-- Domain name matches exactly (without trailing dot in the UI; code will handle trailing dot in API calls).
-- PDNS API settings (host, port, server-id, api key) are configured: 127.0.0.1 / 8081 / localhost / DevTestKey123
-- Use the Test Connection button to confirm connectivity.
-
-Then open the DNSSEC page for that zone; it should show status and keys if DNSSEC was enabled.
-
----
-## 9. Applying Future Schema Changes
-
-If PDNS Console introduces new migrations:
-1. Back up DB: `mysqldump powerdns > backup_$(date +%F).sql`
-2. Apply new migration SQL from `db/migrations/*.sql`
-3. Verify application functionality
-
----
-## 10. Troubleshooting
-
-| Symptom | Possible Cause | Resolution |
-|---------|----------------|-----------|
-| 401 Unauthorized | Wrong API key / `api=yes` missing | Re-check `pdns.conf`, restart, confirm key matches console settings |
-| 404 on zone in DNSSEC page | Zone not in PowerDNS OR server-id mismatch OR naming variant | Confirm zone exists via `pdnsutil list-all-zones`, ensure `server-id` matches console setting |
-| DNSSEC keys not listed | DNSSEC not enabled or permission issue | Run `pdnsutil secure-zone <zone>` and reload |
-| Connection OK in settings but failures later | Host/port reachable but wrong server-id | Verify `server-id` and console value |
-| Mixed charset errors | Database created with wrong charset | Ensure `utf8mb4` charset & collation |
-
----
-## 11. Optional: Docker Quick Start
-
-```bash
-docker run -d --name pdns \
-  -p 5300:53/udp -p 5300:53/tcp -p 8081:8081 \
-  -e PDNS_ALLOW_AXFR_IPS=127.0.0.1 \
-  -e PDNS_API_KEY=DevTestKey123 \
-  powerdns/powerdns-auth-48:latest
-```
-Then create zones with:
-```bash
-docker exec -it pdns pdnsutil create-zone test.local ns1.test.local
-docker exec -it pdns pdnsutil secure-zone test.local
-```
-Set console host=127.0.0.1 port=8081 server-id=localhost key=DevTestKey123.
-
-> Docker image stores data in the container by default; mount a volume for persistence in production.
-
----
-## 12. Security Considerations
+## 6. Security Considerations
 - Protect the API with firewall rules (only console host should access port 8081).
 - Use TLS termination (reverse proxy: nginx/traefik) if remote console access is required.
 - Rotate the API key periodically; update both `pdns.conf` and console settings.
@@ -232,9 +137,6 @@ Set console host=127.0.0.1 port=8081 server-id=localhost key=DevTestKey123.
 ## 13. Summary
 After following these steps you have:
 - Installed PowerDNS with a MySQL/MariaDB backend
-- Initialized the standard schema and applied PDNS Console migrations
 - Configured and verified the API
-- Created and DNSSEC-enabled a test zone
-- Integrated PDNS Console for live DNSSEC management
 
-You are now ready to manage zones and DNSSEC keys directly through PDNS Console.
+You are now ready to manage zones and DNSSEC keys directly through PowerDNS command line or from within the raw MySQL database (optionallly install phpMyAdmin)
