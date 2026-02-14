@@ -38,10 +38,15 @@ Note: PDNS Console operates in Native mode only. MASTER/SLAVE workflows are not 
 
 ## 🛠️ Installation
 
-### 1. Clone the Repository
+### 1. Clone the Repository and create website
 
 ```bash
-git clone https://github.com/andersonit/pdnsconsole.git
+#Create website and set permissions(example website in /var/www/pdnsconsole)
+cd /var/www
+sudo git clone https://github.com/andersonit/pdnsconsole.git
+sudo chown -R www-data:www-data /var/www/pdnsconsole
+sudo chmod -R 775 /var/www/pdnsconsole
+sudo chmod g+s /var/www/pdnsconsole
 cd pdnsconsole
 ```
 
