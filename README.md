@@ -190,7 +190,7 @@ php cli/create_admin.php
 
 Note: This uses the included sample Nginx configuration as a starting point: [config/nginx-pdnsconsole.conf](config/nginx-pdnsconsole.conf).  Modify as needed.
 
-1. Copy the sample site configuration and enable it:
+#### 1. Copy the sample site configuration and enable it:
 
 >IF USING YOUR OWN SSL CERT
 ```bash
@@ -209,9 +209,9 @@ sudo nginx -t && sudo systemctl reload nginx
 # CONTINUE TO OPTIONAL Let's Encrypt SECTION IN STEP 4
 ```
 
-2. Ensure the PHP-FPM socket in the config matches your system (e.g. `/var/run/php/php8.3-fpm.sock`), or change to `127.0.0.1:9000` if using TCP.
+#### 2. Ensure the PHP-FPM socket in the config matches your system (e.g. `/var/run/php/php8.3-fpm.sock`), or change to `127.0.0.1:9000` if using TCP.
 
-3. Upload directory permissions (required for white-label branding uploads):
+#### 3. Upload directory permissions (required for white-label branding uploads):
 
 ```bash
 sudo mkdir -p /var/www/pdnsconsole/webroot/assets/img/uploads
@@ -221,7 +221,24 @@ sudo find /var/www/pdnsconsole/webroot/assets/img/uploads -type f -exec chmod 64
 sudo chmod g+s /var/www/pdnsconsole/webroot/assets/img/uploads
 ```
 
-4. Optional: Let’s Encrypt (recommended) — obtain and install a certificate using Certbot.
+#### 4. Cron jobs
+
+To support automated tasks, schedule the provided scripts:
+
+- DNSSEC timed rollover finalization: `cron/dnssec_rollover.php`
+- Session cleanup: `cron/session_cleanup.php`
+
+Edit cron scheduled tasks
+```bash
+crontab -e
+```
+Add lines to schedule tasks (adjust PHP/Website path):  
+```
+*/15 * * * * /usr/bin/php /var/www/pdnsconsole/cron/dnssec_rollover.php > /dev/null 2>&1
+0 * * * * /usr/bin/php /var/www/pdnsconsole/cron/session_cleanup.php > /dev/null 2>&1
+```
+
+#### 5. Optional: Let’s Encrypt (recommended) — obtain and install a certificate using Certbot.
 
 If your active Nginx configuration already includes SSL (for example the bundled `config/nginx-pdnsconsole.conf`), Certbot may not be able to automatically modify it. In that case you can use a temporary HTTP-only server block that Certbot can edit safely.
 
@@ -261,7 +278,7 @@ sudo systemctl reload nginx
 sudo systemctl status certbot.timer
 sudo certbot renew --dry-run
 ```
-### 8. Finish and Log In
+#### 8. Finish and Log In
 
 Point your browser to the site hostname and log in with the super admin you created.
 
@@ -410,20 +427,5 @@ Business Source License (BSL). Free for non-commercial use managing up to 5 doma
 - [ ] Extension system for validators
 - [ ] Add ability to add "Secondary/Slave" zones (which will be read-only)
 
-### Cron jobs
-
-To support automated tasks, schedule the provided scripts:
-
-- DNSSEC timed rollover finalization: `cron/dnssec_rollover.php`
-- Session cleanup: `cron/session_cleanup.php`
-
-Example crontab entries (adjust PHP path):
-
-```
-*/15 * * * * /usr/bin/php /var/www/pdnsconsole/cron/dnssec_rollover.php > /dev/null 2>&1
-0 * * * * /usr/bin/php /var/www/pdnsconsole/cron/session_cleanup.php > /dev/null 2>&1
-```
-
----
 
 **PDNS Console** — Professional DNS management made simple.
