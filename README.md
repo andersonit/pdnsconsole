@@ -6,7 +6,7 @@ A comprehensive web-based administration interface for PowerDNS with MySQL/Maria
 Please visit https://pdnsconsole.com/demo.php to test a fully functional demo.
 Please reach out with any input, feature requests or bugs.
 
-## **DOCUMENTATION IN PROGRESS**
+### **DOCUMENTATION IN UPDATED - PLEASE REPORT ISSUES**
 
 ## 🚀 Features
 
@@ -28,6 +28,7 @@ Please reach out with any input, feature requests or bugs.
 
 ## 📋 Requirements
 
+- Instructions based on Ubuntu/Debian Distros
 - PHP 8.0+ with PDO MySQL extension
 - MySQL 8.0+ or MariaDB 10.x
 - Nginx Web server with SSL (Will work with Apache, but instructions not included)
@@ -38,7 +39,6 @@ Please reach out with any input, feature requests or bugs.
 
 #### 1. Install PHP 8.3 and Extensions
 
-**Debian/Ubuntu:**
 ```bash
 sudo apt update
 sudo apt install -y software-properties-common
@@ -47,55 +47,26 @@ sudo apt update
 sudo apt install -y php8.3 php8.3-fpm php8.3-mysql php8.3-xml php8.3-mbstring php8.3-curl php8.3-zip php8.3-gd php8.3-bcmath php8.3-intl php8.3-cli php8.3-openssl
 ```
 
-**RHEL/CentOS/Alma/Rocky:**
-```bash
-sudo dnf install -y epel-release
-sudo dnf module reset php
-sudo dnf module enable php:8.3
-sudo dnf install -y php php-fpm php-mysqlnd php-xml php-mbstring php-curl php-zip php-gd php-bcmath php-intl php-cli php-openssl
-```
-
 #### 2. Install MariaDB (or MySQL)
 
-**Debian/Ubuntu:**
 ```bash
 sudo apt install -y mariadb-server
 sudo systemctl enable --now mariadb
 ```
 
-**RHEL/CentOS/Alma/Rocky:**
-```bash
-sudo dnf install -y MariaDB-server
-sudo systemctl enable --now mariadb
-```
-
 #### 3. Install Nginx
 
-**Debian/Ubuntu:**
 ```bash
 sudo apt install -y nginx
 sudo systemctl enable --now nginx
 ```
 
-**RHEL/CentOS/Alma/Rocky:**
-```bash
-sudo dnf install -y nginx
-sudo systemctl enable --now nginx
-```
-
 #### 4. Install PowerDNS (Authoritative) and MySQL Backend
 
-**Debian/Ubuntu:**
 ```bash
 sudo apt install -y pdns-server pdns-backend-mysql pdns-tools
 ```
-If not available, add the PowerDNS repo (see docs/POWERDNS_INSTALLATION.md for details).
-
-**RHEL/CentOS/Alma/Rocky:**
-```bash
-sudo rpm -Uvh https://repo.powerdns.com/repo-files/authoritative/powerdns-auth-48.repo
-sudo dnf install -y pdns pdns-backend-mysql pdns-tools
-```
+*NOTE if pdns service fails to start, Google disabling the stub listener for the systemd-resolver service.
 
 #### 5. Create Database and User
 
@@ -105,6 +76,7 @@ sudo mysql -e "CREATE USER 'pdnsconsole'@'localhost' IDENTIFIED BY 'StrongPdnsPa
 sudo mysql -e "GRANT ALL ON pdnsconsole.* TO 'pdnsconsole'@'localhost'; FLUSH PRIVILEGES;"
 ```
 - Replace `StrongPdnsPass!` with a secure password of your choice.
+
 
 Note: PDNS Console operates in Native mode only. MASTER/SLAVE workflows are not exposed in the UI; all authoritative servers should share the same PowerDNS database.
 
@@ -137,6 +109,10 @@ sudo -u pdnsconsole git clone https://github.com/andersonit/pdnsconsole /var/www
 sudo chown -R pdnsconsole:www-data /var/www/pdnsconsole
 sudo chmod -R 775 /var/www/pdnsconsole
 sudo chmod g+s /var/www/pdnsconsole
+
+# 6. Install PHP Modules
+cd/var/www/pdnsconsole
+sudo -u pdnsconsole composer install
 ```
 
 ### 2. Configure Database
@@ -147,11 +123,20 @@ cp config/config.sample.php config/config.php
 
 # Edit with your database credentials
 nano config/config.php
+#Update Credentials and save
 ```
 
-### 3. Configure PowerDNS to Use the Database
+### 3. Import Database Schema
 
-Edit (or create) `/etc/powerdns/pdns.conf` and set the following (adjust password as needed):
+```bash
+# Import the complete schema (PowerDNS + PDNS Console tables)
+# Replace Username and Database name 
+mysql -u dbusername -p dbname < db/complete-schema.sql
+```
+
+### 4. Configure PowerDNS to Use the Database
+
+Edit/Append `/etc/powerdns/pdns.conf` and set the following (adjust password as needed):
 
 ```ini
 # Backend
@@ -179,19 +164,20 @@ Restart PowerDNS to apply changes:
 sudo systemctl restart pdns
 ```
 
-### 4. Import Database Schema
-
-```bash
-# Import the complete schema (PowerDNS + PDNS Console tables)
-mysql -u pdnsconsole -p pdnsconsole < db/complete-schema.sql
-```
 
 ### 5. Configure Application
 
-Edit `config/app.php` and change the encryption key:
+Edit `config/app.php` and change the encryption key (Generate a random 32 character key):
+```bash
+cp /config/app.sample.php /config/app.php
+nano /config/app.php
+```
 
 ```php
+#Change the following line:
+define('PDNS_ENV', 'production');
 define('ENCRYPTION_KEY', 'your-unique-32-character-secret-key');
+define('APP_URL', 'https://www.pdnsconsole.com'); // Update for your installation
 ```
 
 ### 6. Create Super Admin User
@@ -200,19 +186,11 @@ define('ENCRYPTION_KEY', 'your-unique-32-character-secret-key');
 php cli/create_admin.php
 ```
 
-### 7. Set Web Server Document Root
+### 7. Configure Web Server & SSL (Nginx example)
 
-Point your web server document root to the `webroot/` directory.
+Note: This uses the included sample Nginx configuration as a starting point: [config/nginx-pdnsconsole.conf](config/nginx-pdnsconsole.conf).  Modify as needed.
 
-### 8. Finish and Log In
-
-Point your browser to the site (root or subdirectory where `webroot/` is served) and log in with the super admin you created.
-
-### Web Server & SSL (Nginx example)
-
-Use the included sample Nginx configuration as a starting point: [config/nginx-pdnsconsole.conf](config/nginx-pdnsconsole.conf).
-
-1. Copy the sample site and enable it:
+1. Copy the sample site configuration and enable it:
 
 >IF USING YOUR OWN SSL CERT
 ```bash
@@ -283,6 +261,9 @@ sudo systemctl reload nginx
 sudo systemctl status certbot.timer
 sudo certbot renew --dry-run
 ```
+### 8. Finish and Log In
+
+Point your browser to the site hostname and log in with the super admin you created.
 
 ### OPTIONAL: Load Sample Data for Testing
 
