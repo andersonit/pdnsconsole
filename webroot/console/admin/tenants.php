@@ -56,6 +56,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Tenant name is required.');
                 }
                 
+                // Check for duplicate tenant name
+                $existingTenant = $db->fetch("SELECT id FROM tenants WHERE name = ?", [$name]);
+                if ($existingTenant) {
+                    throw new Exception('A tenant with this name already exists. Please use a different name.');
+                }
+                
                 if (!empty($contactEmail) && !filter_var($contactEmail, FILTER_VALIDATE_EMAIL)) {
                     throw new Exception('Invalid contact email address.');
                 }
@@ -115,6 +121,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (empty($name)) {
                     throw new Exception('Tenant name is required.');
+                }
+                
+                // Check for duplicate tenant name (excluding the current tenant)
+                $existingTenant = $db->fetch("SELECT id FROM tenants WHERE name = ? AND id != ?", [$name, $tenantId]);
+                if ($existingTenant) {
+                    throw new Exception('A tenant with this name already exists. Please use a different name.');
                 }
                 
                 if (!empty($contactEmail) && !filter_var($contactEmail, FILTER_VALIDATE_EMAIL)) {
