@@ -2,6 +2,7 @@
 
 # Configuration files (contain sensitive data)
 /config/config.php
+/config/app.php
 
 # IDE files
 .vscode/
