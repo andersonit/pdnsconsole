@@ -20,7 +20,7 @@ define('APP_VERSION', '1.0.0');
 define('APP_URL', 'https://www.pdnsconsole.com'); // Update for your installation
 
 // Demo Mode (hide sensitive settings like CAPTCHA keys on public demo hosts)
-// Set DEMO_RESTRICTIONS_ENABLED to false to temporarily disable masking on demo hosts
+// Set DEMO_RESTRICTIONS_ENABLED to false to disable masking on demo hosts
 define('DEMO_RESTRICTIONS_ENABLED', false);
 // Hosts where demo restrictions apply (match by HTTP_HOST without port)
 define('DEMO_HOSTNAMES', [
